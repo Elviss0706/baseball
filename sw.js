@@ -1,7 +1,7 @@
 const CACHE = 'baseball-v1';
 const FILES = [
   './',
-  './棒球數據統計.html'
+  './index.html'
 ];
 
 self.addEventListener('install', e => {

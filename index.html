@@ -1,0 +1,1715 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+    <link rel="manifest" href="manifest.json">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="棒球數據">
+  <meta name="theme-color" content="#0f1923">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>⚾ 棒球數據統計</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #0f1923;
+      --surface: #1a2635;
+      --surface2: #243447;
+      --accent: #2ecc71;
+      --accent2: #27ae60;
+      --text: #e8f4ea;
+      --text2: #8fa3b1;
+      --red: #e74c3c;
+      --yellow: #f1c40f;
+      --blue: #3498db;
+      --border: #2d4a5a;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ---- HEADER ---- */
+    header {
+      background: linear-gradient(135deg, #0d2137 0%, #1a3a25 100%);
+      border-bottom: 2px solid var(--accent);
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .header-logo {
+      font-size: 2.2rem;
+      position: relative; cursor: pointer;
+      width: 52px; height: 52px; flex-shrink: 0;
+      border-radius: 10px; overflow: hidden;
+      border: 2px solid rgba(46,204,113,0.25);
+      display: flex; align-items: center; justify-content: center;
+      transition: border-color 0.2s;
+    }
+    .header-logo:hover { border-color: var(--accent); }
+    .header-logo:hover::after {
+      content: '📷'; position: absolute;
+      inset: 0; display: flex; align-items: center; justify-content: center;
+      background: rgba(0,0,0,0.55); font-size: 1.3rem;
+      border-radius: 8px;
+    }
+    #logoImg { width: 52px; height: 52px; object-fit: cover; display: block; }
+    #teamNameInput {
+      background: transparent;
+      border: none;
+      border-bottom: 1.5px solid transparent;
+      color: var(--accent);
+      font-size: 1.15rem; font-weight: 700;
+      padding: 2px 4px; width: 100%; max-width: 300px;
+      outline: none; transition: border-color 0.2s;
+      cursor: text;
+    }
+    #teamNameInput:hover { border-bottom-color: rgba(46,204,113,0.35); }
+    #teamNameInput:focus { border-bottom-color: var(--accent); }
+    .header-sub { font-size: 0.8rem; color: var(--text2); margin-top: 2px; }
+
+    /* ---- PLAYER BAR ---- */
+    .player-bar {
+      background: var(--surface2);
+      border-bottom: 1px solid var(--border);
+      padding: 8px 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .player-bar label { color: var(--text2); font-size: 0.82rem; white-space: nowrap; }
+    .player-bar select {
+      background: var(--surface); border: 1px solid var(--border);
+      color: var(--text); padding: 5px 10px;
+      border-radius: 6px; font-size: 0.88rem; min-width: 140px; cursor: pointer;
+    }
+    .player-bar select:focus { outline: none; border-color: var(--accent); }
+
+    /* ---- TABS ---- */
+    .tabs {
+      display: flex;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .tabs::-webkit-scrollbar { display: none; }
+    .tab {
+      padding: 13px 22px;
+      cursor: pointer;
+      white-space: nowrap;
+      color: var(--text2);
+      border-bottom: 3px solid transparent;
+      font-size: 0.88rem;
+      font-weight: 500;
+      transition: all 0.2s;
+      user-select: none;
+    }
+    .tab:hover { color: var(--text); background: rgba(255,255,255,0.04); }
+    .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+    /* ---- CONTENT ---- */
+    .tab-content { display: none; padding: 20px; max-width: 1280px; margin: 0 auto; }
+    .tab-content.active { display: block; }
+
+    /* ---- CARDS ---- */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    .card-title {
+      color: var(--accent);
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 16px;
+    }
+
+    /* ---- STATS GRID ---- */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+      gap: 10px;
+    }
+    .stat-card {
+      background: var(--surface2);
+      border-radius: 8px;
+      padding: 13px 10px;
+      text-align: center;
+    }
+    .stat-card .s-label { font-size: 0.7rem; color: var(--text2); margin-bottom: 4px; }
+    .stat-card .s-value { font-size: 1.55rem; font-weight: 700; color: var(--accent); line-height: 1; }
+    .stat-card .s-sub { font-size: 0.7rem; color: var(--text2); margin-top: 3px; }
+
+    /* ---- FORM ---- */
+    .form-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+    .form-group { display: flex; flex-direction: column; gap: 4px; }
+    .form-group label { font-size: 0.72rem; color: var(--text2); }
+    .form-group input, .form-group select {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 6px;
+      padding: 7px 9px;
+      font-size: 0.88rem;
+    }
+    input[type="number"] { width: 68px; }
+    input[type="date"] { width: 148px; }
+    input[type="text"] { min-width: 130px; }
+    .form-group input:focus, .form-group select:focus { outline: none; border-color: var(--accent); }
+    .form-divider { width: 100%; height: 1px; background: var(--border); margin: 4px 0; }
+    .form-section-label {
+      width: 100%;
+      font-size: 0.72rem; color: var(--text2); font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.06em; padding: 4px 0 2px;
+    }
+
+    /* ---- BUTTONS ---- */
+    .btn {
+      padding: 8px 16px; border: none;
+      border-radius: 6px; cursor: pointer;
+      font-size: 0.88rem; font-weight: 600;
+      transition: all 0.2s;
+    }
+    .btn-primary { background: var(--accent); color: #0f1923; }
+    .btn-primary:hover { background: var(--accent2); }
+    .btn-danger {
+      background: transparent; border: 1px solid var(--red);
+      color: var(--red); padding: 4px 9px; font-size: 0.78rem;
+    }
+    .btn-danger:hover { background: var(--red); color: white; }
+
+    /* ---- TABLES ---- */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
+    th {
+      background: var(--surface2); color: var(--text2);
+      padding: 9px 10px; text-align: center; font-weight: 600;
+      font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap;
+    }
+    td { padding: 8px 10px; text-align: center; border-bottom: 1px solid var(--border); white-space: nowrap; }
+    tr:hover td { background: rgba(255,255,255,0.03); }
+    .td-left { text-align: left; }
+    .td-hi { color: var(--accent); font-weight: 700; }
+
+    /* ---- BADGES ---- */
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.72rem; font-weight: 700; }
+    .badge-win  { background: rgba(46,204,113,0.18); color: var(--accent); }
+    .badge-loss { background: rgba(231,76,60,0.18);  color: var(--red); }
+    .badge-tie  { background: rgba(241,196,15,0.18); color: var(--yellow); }
+
+    /* ---- CHART ---- */
+    .chart-wrap { position: relative; height: 210px; }
+
+    /* ---- SPRAY ---- */
+    .spray-layout { display: grid; grid-template-columns: 1fr 240px; gap: 20px; align-items: start; }
+    @media (max-width: 720px) { .spray-layout { grid-template-columns: 1fr; } }
+    #fieldSvg { cursor: crosshair; display: block; margin: 0 auto; max-width: 100%; }
+    .hit-dot { cursor: pointer; }
+    .spray-controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+    .hit-type-btn {
+      padding: 7px 14px; border-radius: 6px; border: 2px solid;
+      background: transparent; cursor: pointer; font-weight: 700; font-size: 0.82rem; transition: all 0.15s;
+    }
+    .spray-stat-row { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; font-size: 0.84rem; }
+    .spray-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .zone-bar-wrap { margin-bottom: 6px; }
+    .zone-bar-label { display: flex; justify-content: space-between; font-size: 0.78rem; margin-bottom: 2px; }
+    .zone-bar-bg { background: var(--surface2); border-radius: 3px; height: 6px; }
+    .zone-bar-fill { background: var(--accent); border-radius: 3px; height: 6px; transition: width 0.3s; }
+
+    /* ---- EMPTY ---- */
+    .empty { text-align: center; padding: 36px; color: var(--text2); }
+    .empty-icon { font-size: 2.4rem; margin-bottom: 8px; }
+
+    /* ---- FILTER BAR ---- */
+    .filter-bar {
+      display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end;
+      padding: 12px 16px; background: var(--surface2);
+      border: 1px solid var(--border); border-radius: 10px; margin-bottom: 14px;
+    }
+    .filter-bar label { font-size: 0.72rem; color: var(--text2); margin-bottom: 3px; display: block; }
+    .filter-bar input {
+      background: var(--surface); border: 1px solid var(--border);
+      color: var(--text); border-radius: 6px; padding: 6px 10px; font-size: 0.85rem; min-width: 150px;
+    }
+    .filter-bar input:focus { outline: none; border-color: var(--accent); }
+    .filter-bar input::placeholder { color: var(--text2); }
+
+    /* ---- RECORD CARDS ---- */
+    .record-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; }
+    .record-card { background: var(--surface2); border-radius: 8px; padding: 14px 10px; text-align: center; }
+    .record-card .rc-label { font-size: 0.7rem; color: var(--text2); margin-bottom: 5px; }
+    .record-card .rc-value { font-size: 1.9rem; font-weight: 800; line-height: 1; }
+    .rc-win  { color: var(--accent); }
+    .rc-loss { color: var(--red); }
+    .rc-tie  { color: var(--yellow); }
+    .rc-rate { color: #60c6f0; }
+
+    /* ---- GAME INFO BOX ---- */
+    .game-info-box {
+      background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+      padding: 10px 14px; margin-bottom: 10px; font-size: 0.85rem;
+      display: flex; gap: 20px; flex-wrap: wrap; align-items: center;
+    }
+    .game-info-box span { color: var(--text2); font-size: 0.78rem; }
+    .game-info-box strong { color: var(--text); }
+
+    @media (max-width: 600px) {
+      .stats-grid { grid-template-columns: repeat(3, 1fr); }
+      header { padding: 12px 14px; }
+      .tab { padding: 11px 14px; }
+      .tab-content { padding: 12px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="header-logo" onclick="document.getElementById('logoInput').click()" title="點擊上傳隊徽圖片">
+    <span id="logoEmoji">⚾</span>
+    <img id="logoImg" alt="隊徽" style="display:none">
+    <input type="file" id="logoInput" accept="image/*" style="display:none" onchange="uploadLogo(this)">
+  </div>
+  <div style="flex:1;min-width:0">
+    <input id="teamNameInput" type="text" placeholder="輸入球隊名稱"
+           value="" maxlength="30"
+           onblur="saveTeamName(this.value)"
+           onkeydown="if(event.key==='Enter')this.blur()">
+    <div class="header-sub">棒球數據統計系統</div>
+  </div>
+  <button class="btn btn-primary" onclick="exportReport()" style="white-space:nowrap;font-size:0.85rem;padding:8px 16px">
+    📄 匯出報告
+  </button>
+</header>
+
+<!-- PLAYER BAR -->
+<div class="player-bar">
+  <label>🏃 球員</label>
+  <select id="playerSelect" onchange="switchPlayer(this.value)">
+    <option value="">— 請選擇球員 —</option>
+  </select>
+  <button class="btn btn-primary" onclick="addPlayerPrompt()"
+          style="font-size:0.82rem;padding:5px 14px">＋ 新增球員</button>
+  <button class="btn" id="renamePlayerBtn" onclick="renamePlayerPrompt()"
+          style="display:none;font-size:0.82rem;padding:5px 12px;
+                 border:1px solid var(--blue);color:var(--blue);background:transparent">✏️ 改名</button>
+  <button class="btn btn-danger" id="deletePlayerBtn" onclick="deletePlayerConfirm()"
+          style="display:none;font-size:0.82rem;padding:5px 12px">🗑 刪除球員</button>
+</div>
+
+<!-- TABS -->
+<div class="tabs">
+  <div class="tab active"  onclick="switchTab('gamemgmt')">📅 比賽管理</div>
+  <div class="tab" onclick="switchTab('games')">📋 比賽記錄</div>
+  <div class="tab" onclick="switchTab('batting')">🏏 打擊數據</div>
+  <div class="tab" onclick="switchTab('pitching')">🥎 投球數據</div>
+  <div class="tab" onclick="switchTab('fielding')">🧤 守備數據</div>
+  <div class="tab" onclick="switchTab('spray')">🎯 落點分布</div>
+</div>
+
+<!-- ===== TAB: 比賽管理 ===== -->
+<div id="tab-gamemgmt" class="tab-content active">
+  <div class="card" id="gameMgmtFormCard">
+    <div id="gameMgmtEditBanner" style="display:none;background:rgba(52,152,219,0.15);
+         border:1px solid var(--blue);border-radius:8px;padding:8px 14px;margin-bottom:14px;
+         font-size:0.85rem;color:var(--blue)"></div>
+    <div class="card-title" id="gameMgmtFormTitle">新增比賽</div>
+    <div class="form-row">
+      <div class="form-section-label">📅 比賽基本資訊</div>
+      <div class="form-group"><label>比賽日期</label><input type="date" id="mgDate"></div>
+      <div class="form-group">
+        <label>比賽名稱</label>
+        <input type="text" id="mgTitle" placeholder="例：聯賽、友誼賽…" style="min-width:160px">
+      </div>
+      <div class="form-group"><label>對手隊名</label><input type="text" id="mgOpp" placeholder="對手"></div>
+      <div class="form-group"><label>我方比數</label><input type="number" id="mgMyScore" min="0" value="0"></div>
+      <div class="form-group"><label>對手比數</label><input type="number" id="mgOppScore" min="0" value="0"></div>
+      <div class="form-group">
+        <label>主/客場</label>
+        <select id="mgNote" style="width:110px">
+          <option value="主場">🏠 主場</option>
+          <option value="客場">✈️ 客場</option>
+          <option value="中立場">⚾ 中立場</option>
+        </select>
+      </div>
+      <div class="form-divider"></div>
+      <div class="form-group" style="justify-content:flex-end;gap:8px;padding-top:4px;display:flex;flex-direction:row">
+        <button id="cancelGameMgmtBtn" class="btn" onclick="cancelGameMgmtEdit()"
+          style="display:none;border:1px solid var(--text2);color:var(--text2);background:transparent">✕ 取消編輯</button>
+        <button id="addGameMgmtBtn" class="btn btn-primary" onclick="saveGameMgmt()">＋ 新增比賽</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">比賽清單</div>
+    <div class="filter-bar">
+      <div>
+        <label>🔍 比賽名稱</label>
+        <input type="text" id="filterTitle" placeholder="輸入比賽名稱…" oninput="renderGameMgmt()">
+      </div>
+      <div>
+        <label>⚔️ 對手隊名</label>
+        <input type="text" id="filterOpp" placeholder="輸入對手…" oninput="renderGameMgmt()">
+      </div>
+      <button class="btn" onclick="clearFilters()"
+        style="align-self:flex-end;background:transparent;border:1px solid var(--border);
+               color:var(--text2);font-size:0.8rem;padding:6px 12px">✕ 清除篩選</button>
+      <span id="filterCount" style="align-self:flex-end;font-size:0.78rem;color:var(--text2);padding-bottom:4px"></span>
+    </div>
+    <div class="record-grid">
+      <div class="record-card"><div class="rc-label">勝場</div><div class="rc-value rc-win" id="rcWin">0</div></div>
+      <div class="record-card"><div class="rc-label">敗場</div><div class="rc-value rc-loss" id="rcLoss">0</div></div>
+      <div class="record-card"><div class="rc-label">平手</div><div class="rc-value rc-tie" id="rcTie">0</div></div>
+      <div class="record-card"><div class="rc-label">勝率</div><div class="rc-value rc-rate" id="rcRate">-</div></div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>日期</th><th>比賽名稱</th><th>對手</th><th>比數</th><th>結果</th>
+            <th>主/客場</th><th>已記錄球員</th><th colspan="2"></th>
+          </tr>
+        </thead>
+        <tbody id="gameMgmtBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ===== TAB: 比賽記錄 ===== -->
+<div id="tab-games" class="tab-content">
+  <div class="card" id="statFormCard">
+    <div id="statEditBanner" style="display:none;background:rgba(52,152,219,0.15);
+         border:1px solid var(--blue);border-radius:8px;padding:8px 14px;margin-bottom:14px;
+         font-size:0.85rem;color:var(--blue)"></div>
+    <div class="card-title" id="statFormTitle">新增球員成績</div>
+    <div class="form-row">
+      <div class="form-section-label">📅 選擇比賽</div>
+      <div class="form-group" style="width:100%">
+        <label>比賽</label>
+        <select id="sGameId" style="min-width:340px;max-width:600px" onchange="onGameSelectChange()">
+          <option value="">— 請先至「比賽管理」建立比賽，再回此處選擇 —</option>
+        </select>
+      </div>
+      <div id="selectedGameInfo" style="display:none;width:100%"></div>
+      <div class="form-divider"></div>
+      <div class="form-section-label">🏏 打擊數據</div>
+      <div class="form-group"><label>打數 AB</label><input type="number" id="sAB" min="0" value="0"></div>
+      <div class="form-group"><label>一壘安打 1B</label><input type="number" id="sH" min="0" value="0"></div>
+      <div class="form-group"><label>二壘打 2B</label><input type="number" id="s2B" min="0" value="0"></div>
+      <div class="form-group"><label>三壘打 3B</label><input type="number" id="s3B" min="0" value="0"></div>
+      <div class="form-group"><label>全壘打 HR</label><input type="number" id="sHR" min="0" value="0"></div>
+      <div class="form-group"><label>打點 RBI</label><input type="number" id="sRBI" min="0" value="0"></div>
+      <div class="form-group"><label>得分 RUN</label><input type="number" id="sRUN" min="0" value="0"></div>
+      <div class="form-group"><label>四壞球 BB</label><input type="number" id="sBB" min="0" value="0"></div>
+      <div class="form-group"><label>三振 K</label><input type="number" id="sK" min="0" value="0"></div>
+      <div class="form-group"><label>觸身球 HBP</label><input type="number" id="sHBP" min="0" value="0"></div>
+      <div class="form-group"><label>犧牲飛球 SF</label><input type="number" id="sSF" min="0" value="0"></div>
+      <div class="form-group"><label>犧牲觸擊 SAC</label><input type="number" id="sSAC" min="0" value="0"></div>
+      <div class="form-group"><label>盜壘成功 SB</label><input type="number" id="sSB" min="0" value="0"></div>
+      <div class="form-divider"></div>
+      <div class="form-section-label">🥎 投球數據（未投球填 0）</div>
+      <div class="form-group"><label>投球局數 IP</label><input type="number" id="sIP" min="0" step="0.1" value="0"></div>
+      <div class="form-group"><label>被安打</label><input type="number" id="sPH" min="0" value="0"></div>
+      <div class="form-group"><label>責任失分 ER</label><input type="number" id="sPER" min="0" value="0"></div>
+      <div class="form-group"><label>四壞球 BB</label><input type="number" id="sPBB" min="0" value="0"></div>
+      <div class="form-group"><label>三振 K</label><input type="number" id="sPK" min="0" value="0"></div>
+      <div class="form-group"><label>勝投 W</label><input type="number" id="sPW" min="0" value="0"></div>
+      <div class="form-group"><label>敗投 L</label><input type="number" id="sPL" min="0" value="0"></div>
+      <div class="form-divider"></div>
+      <div class="form-section-label">🧤 守備數據</div>
+      <div class="form-group"><label>接殺 PO</label><input type="number" id="sPO" min="0" value="0"></div>
+      <div class="form-group"><label>助殺 A</label><input type="number" id="sA" min="0" value="0"></div>
+      <div class="form-group"><label>失誤 E</label><input type="number" id="sE" min="0" value="0"></div>
+      <div class="form-group"><label>雙殺 DP</label><input type="number" id="sDP" min="0" value="0"></div>
+      <div class="form-divider"></div>
+      <div class="form-group" style="justify-content:flex-end;gap:8px;padding-top:4px;display:flex;flex-direction:row">
+        <button id="cancelStatEditBtn" class="btn" onclick="cancelStatEdit()"
+          style="display:none;border:1px solid var(--text2);color:var(--text2);background:transparent">✕ 取消編輯</button>
+        <button id="addStatBtn" class="btn btn-primary" onclick="saveStat()">＋ 新增成績</button>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">球員成績列表</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>日期</th><th>比賽名稱</th><th>對手</th><th>比數</th><th>結果</th>
+            <th>AB</th><th>H</th><th>1B</th><th>2B</th><th>3B</th><th>HR</th><th>RBI</th><th>RUN</th><th>SF</th><th>SAC</th><th>AVG</th>
+            <th>主/客場</th><th colspan="2"></th>
+          </tr>
+        </thead>
+        <tbody id="gamesBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ===== TAB: 打擊數據 ===== -->
+<div id="tab-batting" class="tab-content">
+  <div class="card">
+    <div class="card-title">本季打擊成績</div>
+    <div class="stats-grid" id="battingStats"></div>
+  </div>
+  <div class="card">
+    <div class="card-title">累積打擊率走勢</div>
+    <div class="chart-wrap"><canvas id="avgChart"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="card-title">逐場打擊紀錄</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>日期</th><th>對手</th>
+            <th>AB</th><th>H</th><th>1B</th><th>2B</th><th>3B</th><th>HR</th>
+            <th>RBI</th><th>RUN</th><th>BB</th><th>K</th><th>HBP</th><th>SF</th><th>SAC</th><th>SB</th>
+            <th>AVG</th><th>OBP</th><th>SLG</th>
+          </tr>
+        </thead>
+        <tbody id="battingBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ===== TAB: 投球數據 ===== -->
+<div id="tab-pitching" class="tab-content">
+  <div class="card">
+    <div class="card-title">本季投球成績</div>
+    <div class="stats-grid" id="pitchingStats"></div>
+  </div>
+  <div class="card">
+    <div class="card-title">逐場投球紀錄</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>日期</th><th>對手</th>
+            <th>局數 IP</th><th>被安打</th><th>責任失分 ER</th><th>四壞 BB</th><th>三振 K</th><th>勝投 W</th><th>敗投 L</th><th>單場 ERA</th>
+          </tr>
+        </thead>
+        <tbody id="pitchingBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ===== TAB: 守備數據 ===== -->
+<div id="tab-fielding" class="tab-content">
+  <div class="card">
+    <div class="card-title">本季守備成績</div>
+    <div class="stats-grid" id="fieldingStats"></div>
+  </div>
+  <div class="card">
+    <div class="card-title">逐場守備紀錄</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>日期</th><th>對手</th>
+            <th>接殺 PO</th><th>助殺 A</th><th>失誤 E</th><th>雙殺 DP</th><th>守備率 FLD%</th>
+          </tr>
+        </thead>
+        <tbody id="fieldingBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ===== TAB: 落點分布 ===== -->
+<div id="tab-spray" class="tab-content">
+  <div class="spray-layout">
+    <div>
+      <div class="card">
+        <div class="card-title">打擊落點圖</div>
+        <p style="font-size:0.78rem;color:var(--text2);margin-bottom:12px">
+          選擇安打類型 → 點擊球場位置新增落點　｜　<strong>右鍵點擊落點</strong>可刪除
+        </p>
+        <div class="spray-controls">
+          <button class="hit-type-btn" id="btn1B" style="border-color:#2ecc71;color:#0f1923;background:#2ecc71" onclick="setHitType('1B')">● 一壘安打</button>
+          <button class="hit-type-btn" id="btn2B" style="border-color:#3498db;color:#3498db" onclick="setHitType('2B')">● 二壘安打</button>
+          <button class="hit-type-btn" id="btn3B" style="border-color:#f1c40f;color:#f1c40f" onclick="setHitType('3B')">● 三壘安打</button>
+          <button class="hit-type-btn" id="btnHR" style="border-color:#e74c3c;color:#e74c3c" onclick="setHitType('HR')">● 全壘打</button>
+          <button class="btn btn-danger" onclick="clearAllHits()" style="margin-left:auto">清除全部</button>
+        </div>
+        <svg id="fieldSvg" viewBox="0 0 560 490"
+             onclick="addHit(event)" oncontextmenu="removeHit(event)">
+          <defs>
+            <!-- clip to green outfield fan (for vertical stripes) -->
+            <clipPath id="ofGreenClip">
+              <path d="M 280,460 L 75,252 Q 280,54 485,252 Z"/>
+            </clipPath>
+          </defs>
+
+          <!-- ① 背景 -->
+          <rect width="560" height="490" fill="#1a2635"/>
+
+          <!-- ② 警戒區（外側棕色扇形） -->
+          <path d="M 280,460 L 55,232 Q 280,14 505,232 Z" fill="#B07238"/>
+
+          <!-- ③ 外野草皮（內側扇形，亮綠色） -->
+          <path d="M 280,460 L 75,252 Q 280,54 485,252 Z" fill="#3C9040"/>
+
+          <!-- ④ 外野直條紋（垂直，clipped 至外野草皮） -->
+          <g clip-path="url(#ofGreenClip)">
+            <rect x="56"  y="0" width="18" height="490" fill="rgba(0,0,0,0.10)"/>
+            <rect x="92"  y="0" width="18" height="490" fill="rgba(0,0,0,0.10)"/>
+            <rect x="128" y="0" width="18" height="490" fill="rgba(0,0,0,0.10)"/>
+            <rect x="164" y="0" width="18" height="490" fill="rgba(0,0,0,0.10)"/>
+            <rect x="200" y="0" width="18" height="490" fill="rgba(0,0,0,0.10)"/>
+            <rect x="236" y="0" width="18" height="490" fill="rgba(0,0,0,0.10)"/>
+            <rect x="272" y="0" width="18" height="490" fill="rgba(0,0,0,0.10)"/>
+            <rect x="308" y="0" width="18" height="490" fill="rgba(0,0,0,0.10)"/>
+            <rect x="344" y="0" width="18" height="490" fill="rgba(0,0,0,0.10)"/>
+            <rect x="380" y="0" width="18" height="490" fill="rgba(0,0,0,0.10)"/>
+            <rect x="416" y="0" width="18" height="490" fill="rgba(0,0,0,0.10)"/>
+            <rect x="452" y="0" width="18" height="490" fill="rgba(0,0,0,0.10)"/>
+            <rect x="488" y="0" width="18" height="490" fill="rgba(0,0,0,0.10)"/>
+          </g>
+
+          <!-- ⑤ 內野土（橢圓形，棕色，蓋住內野區域） -->
+          <ellipse cx="280" cy="400" rx="90" ry="78" fill="#B07238"/>
+
+          <!-- ⑥ 內野草皮（菱形，比四壘連線略小的綠色區域） -->
+          <polygon points="280,458 341,398 280,337 219,398" fill="#3C9040"/>
+
+          <!-- ⑦ 全壘打區標示 -->
+          <path d="M 58,236 Q 280,18 502,236 L 481,257 Q 280,60 79,257 Z"
+                fill="rgba(231,76,60,0.13)"
+                stroke="rgba(231,76,60,0.65)" stroke-width="1.2" stroke-dasharray="4,3"/>
+          <text x="280" y="132" fill="rgba(231,76,60,0.65)" font-size="10" font-weight="bold" text-anchor="middle">— 全壘打區 —</text>
+
+          <!-- ⑧ 邊線（白色實線） -->
+          <line x1="280" y1="458" x2="66"  y2="244" stroke="white" stroke-width="1.6"/>
+          <line x1="280" y1="458" x2="494" y2="244" stroke="white" stroke-width="1.6"/>
+
+          <!-- ⑨ 壘包連線 -->
+          <line x1="280" y1="458" x2="341" y2="398" stroke="white" stroke-width="1.5"/>
+          <line x1="341" y1="398" x2="280" y2="337" stroke="white" stroke-width="1.5"/>
+          <line x1="280" y1="337" x2="219" y2="398" stroke="white" stroke-width="1.5"/>
+          <line x1="219" y1="398" x2="280" y2="458" stroke="white" stroke-width="1.5"/>
+
+          <!-- ⑩ 投手丘 -->
+          <circle cx="280" cy="401" r="11" fill="#B07238" stroke="#8A5822" stroke-width="1.5"/>
+          <rect x="272" y="399" width="16" height="4" rx="1" fill="white"/>
+
+          <!-- ⑪ 本壘板 -->
+          <polygon points="280,470 271,461 271,451 289,451 289,461" fill="white"/>
+
+          <!-- ⑫ 打擊區（L形白線，本壘板兩側） -->
+          <path d="M 268,465 L 261,465 L 261,449 L 268,449" fill="none" stroke="white" stroke-width="1.2"/>
+          <path d="M 292,465 L 299,465 L 299,449 L 292,449" fill="none" stroke="white" stroke-width="1.2"/>
+
+          <!-- ⑬ 壘包 -->
+          <rect x="335" y="392" width="12" height="12" fill="white" transform="rotate(45 341 398)"/>
+          <rect x="274" y="331" width="12" height="12" fill="white" transform="rotate(45 280 337)"/>
+          <rect x="213" y="392" width="12" height="12" fill="white" transform="rotate(45 219 398)"/>
+
+          <!-- ⑭ 壘包標籤 -->
+          <text x="358" y="403" fill="rgba(255,255,255,0.60)" font-size="10">1B</text>
+          <text x="285" y="328" fill="rgba(255,255,255,0.60)" font-size="10">2B</text>
+          <text x="193" y="403" fill="rgba(255,255,255,0.60)" font-size="10">3B</text>
+          <text x="267" y="486" fill="rgba(255,255,255,0.50)" font-size="10">本壘</text>
+
+          <!-- ⑮ 區域標籤 -->
+          <text x="145" y="215" fill="rgba(255,255,255,0.28)" font-size="13" font-weight="bold" text-anchor="middle">左外野</text>
+          <text x="280" y="190" fill="rgba(255,255,255,0.28)" font-size="13" font-weight="bold" text-anchor="middle">中外野</text>
+          <text x="415" y="215" fill="rgba(255,255,255,0.28)" font-size="13" font-weight="bold" text-anchor="middle">右外野</text>
+
+          <!-- 落點圖層 -->
+          <g id="hitDots"></g>
+        </svg>
+      </div>
+    </div>
+    <div>
+      <div class="card">
+        <div class="card-title">落點統計</div>
+        <div id="sprayStats">
+          <div class="empty" style="padding:20px"><div class="empty-icon">🎯</div>點擊球場新增落點</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">安打類型分布</div>
+        <div class="chart-wrap" style="height:170px"><canvas id="hitTypeChart"></canvas></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ================================================================
+   DATA MODEL
+   db.games   = [{id, date, title, opp, myScore, oppScore, note}]
+   db.stats   = [{id, playerId, gameId, AB, H, d2B, d3B, HR,
+                   RBI, BB, K, HBP, SF, SB, IP, PH, PER, PBB, PK, PO, A, E, DP}]
+   db.hits    = [{id, playerId, type, x, y}]
+   db.players = [{id, name}]
+   db.teamName = string
+   db.teamLogo = base64 string
+   ================================================================ */
+let db = { players: [], activePlayerId: null, games: [], stats: [], hits: [] };
+
+function save() { localStorage.setItem('baseball_v1', JSON.stringify(db)); }
+function uid()  { return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+function getGame(id) { return db.games.find(g => g.id === id) || {}; }
+
+function load() {
+  const raw = localStorage.getItem('baseball_v1');
+  if (raw) { try { db = JSON.parse(raw); } catch(e) {} }
+  if (!db.players)  db.players = [];
+  if (!db.games)    db.games   = [];
+  if (!db.hits)     db.hits    = [];
+  if (db.activePlayerId === undefined) db.activePlayerId = null;
+
+  // 遷移：舊版 games 同時含有比賽資訊 + 球員數據 → 拆分
+  if (!db.stats) {
+    db.stats = [];
+    if (db.games.length > 0 && db.games[0].AB !== undefined) {
+      let pid = null;
+      if (db.players.length === 0) {
+        pid = uid();
+        db.players.push({ id: pid, name: db.playerName || '林宥澄' });
+        db.activePlayerId = pid;
+      } else { pid = db.players[0].id; }
+      const newGames = db.games.map(g => ({
+        id: g.id, date: g.date, title: g.title || '',
+        opp: g.opp || '', myScore: g.myScore || 0, oppScore: g.oppScore || 0, note: g.note || '主場'
+      }));
+      const newStats = db.games.map(g => ({
+        id: uid(), playerId: g.playerId || pid, gameId: g.id,
+        AB: g.AB||0, H: g.H||0, d2B: g.d2B||0, d3B: g.d3B||0, HR: g.HR||0,
+        RBI: g.RBI||0, BB: g.BB||0, K: g.K||0, HBP: g.HBP||0, SF: g.SF||0, SB: g.SB||0,
+        IP: g.IP||0, PH: g.PH||0, PER: g.PER||0, PBB: g.PBB||0, PK: g.PK||0,
+        PO: g.PO||0, A: g.A||0, E: g.E||0, DP: g.DP||0
+      }));
+      db.hits.forEach(h => { if (!h.playerId) h.playerId = pid; });
+      db.games = newGames; db.stats = newStats;
+      save();
+    }
+  }
+  if (db.stats === undefined) db.stats = [];
+  // 遷移：補充新欄位預設值
+  db.stats.forEach(s => {
+    if (s.RUN === undefined) s.RUN = 0;
+    if (s.SAC === undefined) s.SAC = 0;
+    if (s.PW  === undefined) s.PW  = 0;
+    if (s.PL  === undefined) s.PL  = 0;
+  });
+
+  // 還原球隊名稱
+  if (db.teamName) document.getElementById('teamNameInput').value = db.teamName;
+  // 還原隊徽
+  if (db.teamLogo) {
+    document.getElementById('logoImg').src = db.teamLogo;
+    document.getElementById('logoImg').style.display = 'block';
+    document.getElementById('logoEmoji').style.display = 'none';
+  }
+  renderPlayerSelect();
+  renderGameSelect();
+}
+
+/* ---- TEAM LOGO & NAME ---- */
+function uploadLogo(input) {
+  const file = input.files[0];
+  if (!file) return;
+  if (file.size > 2 * 1024 * 1024) { alert('圖片大小請勿超過 2MB'); return; }
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const src = e.target.result;
+    document.getElementById('logoImg').src = src;
+    document.getElementById('logoImg').style.display = 'block';
+    document.getElementById('logoEmoji').style.display = 'none';
+    db.teamLogo = src; save();
+  };
+  reader.readAsDataURL(file);
+  input.value = '';
+}
+
+function saveTeamName(val) { db.teamName = val.trim(); save(); }
+
+/* ---- PLAYER MANAGEMENT ---- */
+function activeStats() {
+  if (!db.activePlayerId) return [];
+  return db.stats.filter(s => s.playerId === db.activePlayerId);
+}
+function activeHits() {
+  if (!db.activePlayerId) return [];
+  return db.hits.filter(h => h.playerId === db.activePlayerId);
+}
+
+function renderPlayerSelect() {
+  const sel = document.getElementById('playerSelect');
+  sel.innerHTML = '<option value="">— 請選擇球員 —</option>' +
+    db.players.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+  sel.value = db.activePlayerId || '';
+  const has = !!db.activePlayerId;
+  document.getElementById('renamePlayerBtn').style.display = has ? 'inline-block' : 'none';
+  document.getElementById('deletePlayerBtn').style.display = has ? 'inline-block' : 'none';
+}
+
+function switchPlayer(id) {
+  if (editingStatId) cancelStatEdit();
+  db.activePlayerId = id || null; save();
+  renderPlayerSelect(); renderGames();
+  if (document.getElementById('tab-batting').classList.contains('active'))  renderBatting();
+  if (document.getElementById('tab-pitching').classList.contains('active')) renderPitching();
+  if (document.getElementById('tab-fielding').classList.contains('active')) renderFielding();
+  if (document.getElementById('tab-spray').classList.contains('active'))    renderSpray();
+}
+
+function addPlayerPrompt() {
+  const name = prompt('請輸入球員姓名：', '');
+  if (!name || !name.trim()) return;
+  const pid = uid();
+  db.players.push({ id: pid, name: name.trim() });
+  db.activePlayerId = pid;
+  save(); renderPlayerSelect(); renderGames();
+}
+
+function renamePlayerPrompt() {
+  const p = db.players.find(x => x.id === db.activePlayerId);
+  if (!p) return;
+  const name = prompt('請輸入新姓名：', p.name);
+  if (!name || !name.trim()) return;
+  p.name = name.trim(); save(); renderPlayerSelect();
+}
+
+function deletePlayerConfirm() {
+  const p = db.players.find(x => x.id === db.activePlayerId);
+  if (!p) return;
+  const sc = db.stats.filter(s => s.playerId === p.id).length;
+  if (!confirm(`確定刪除球員「${p.name}」及其所有 ${sc} 筆成績記錄與落點資料？`)) return;
+  db.stats   = db.stats.filter(s => s.playerId !== p.id);
+  db.hits    = db.hits.filter(h => h.playerId  !== p.id);
+  db.players = db.players.filter(x => x.id !== p.id);
+  db.activePlayerId = db.players.length ? db.players[0].id : null;
+  save(); renderPlayerSelect(); renderGames();
+}
+
+/* ---- TABS ---- */
+const TAB_NAMES = ['gamemgmt','games','batting','pitching','fielding','spray'];
+function switchTab(name) {
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  document.querySelectorAll('.tab')[TAB_NAMES.indexOf(name)].classList.add('active');
+  if (name === 'games')    { renderGameSelect(); renderGames(); }
+  if (name === 'batting')  renderBatting();
+  if (name === 'pitching') renderPitching();
+  if (name === 'fielding') renderFielding();
+  if (name === 'spray')    renderSpray();
+}
+
+const today = new Date().toISOString().split('T')[0];
+document.getElementById('mgDate').value = today;
+
+/* ================================================================
+   比賽管理 CRUD
+   ================================================================ */
+let editingGameId = null;
+function gvMg(id) { return document.getElementById(id).value; }
+function gnMg(id) { return +document.getElementById(id).value || 0; }
+
+function buildGameObj(id) {
+  return {
+    id: id || uid(), date: gvMg('mgDate'), title: gvMg('mgTitle').trim(),
+    opp: gvMg('mgOpp').trim() || '未知對手',
+    myScore: gnMg('mgMyScore'), oppScore: gnMg('mgOppScore'), note: gvMg('mgNote')
+  };
+}
+
+function resetGameMgmtForm() {
+  document.getElementById('mgDate').value = today;
+  document.getElementById('mgTitle').value = '';
+  document.getElementById('mgOpp').value = '';
+  document.getElementById('mgMyScore').value = 0;
+  document.getElementById('mgOppScore').value = 0;
+  document.getElementById('mgNote').selectedIndex = 0;
+  editingGameId = null;
+  document.getElementById('addGameMgmtBtn').textContent = '＋ 新增比賽';
+  document.getElementById('addGameMgmtBtn').style.background = '';
+  document.getElementById('cancelGameMgmtBtn').style.display = 'none';
+  document.getElementById('gameMgmtEditBanner').style.display = 'none';
+  document.getElementById('gameMgmtFormTitle').textContent = '新增比賽';
+}
+
+function saveGameMgmt() {
+  if (!gvMg('mgDate')) { alert('請填寫比賽日期'); return; }
+  if (editingGameId) {
+    const idx = db.games.findIndex(g => g.id === editingGameId);
+    if (idx !== -1) db.games[idx] = buildGameObj(editingGameId);
+  } else {
+    db.games.push(buildGameObj(null));
+  }
+  db.games.sort((a,b) => a.date.localeCompare(b.date));
+  save(); resetGameMgmtForm(); renderGameMgmt(); renderGameSelect();
+}
+
+function editGameMgmt(id) {
+  const g = db.games.find(x => x.id === id);
+  if (!g) return;
+  editingGameId = id;
+  document.getElementById('mgDate').value = g.date;
+  document.getElementById('mgTitle').value = g.title || '';
+  document.getElementById('mgOpp').value = g.opp;
+  document.getElementById('mgMyScore').value = g.myScore;
+  document.getElementById('mgOppScore').value = g.oppScore;
+  document.getElementById('mgNote').value = g.note;
+  document.getElementById('addGameMgmtBtn').textContent = '💾 更新比賽';
+  document.getElementById('addGameMgmtBtn').style.background = 'var(--blue)';
+  document.getElementById('cancelGameMgmtBtn').style.display = 'inline-block';
+  document.getElementById('gameMgmtEditBanner').style.display = 'block';
+  document.getElementById('gameMgmtEditBanner').textContent =
+    `✏️ 正在編輯：${g.date}${g.title ? '　' + g.title : ''}　vs ${g.opp}`;
+  document.getElementById('gameMgmtFormTitle').textContent = '編輯比賽';
+  document.getElementById('gameMgmtFormCard').scrollIntoView({ behavior: 'smooth' });
+  renderGameMgmt();
+}
+
+function cancelGameMgmtEdit() { resetGameMgmtForm(); renderGameMgmt(); }
+
+function deleteGame(id) {
+  const g = db.games.find(x => x.id === id);
+  if (!g) return;
+  const sc = db.stats.filter(s => s.gameId === id).length;
+  const msg = sc > 0
+    ? `確定刪除「${g.date} vs ${g.opp}」？此操作也會刪除 ${sc} 筆球員成績記錄。`
+    : `確定刪除「${g.date} vs ${g.opp}」？`;
+  if (!confirm(msg)) return;
+  db.games = db.games.filter(x => x.id !== id);
+  db.stats = db.stats.filter(s => s.gameId !== id);
+  save(); renderGameMgmt(); renderGameSelect(); renderGames();
+}
+
+function clearFilters() {
+  document.getElementById('filterTitle').value = '';
+  document.getElementById('filterOpp').value = '';
+  renderGameMgmt();
+}
+
+function hlText(text, keyword) {
+  if (!keyword || !text) return text;
+  const re = new RegExp('(' + keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'gi');
+  return String(text).replace(re, '<mark style="background:rgba(241,196,15,0.35);color:inherit;border-radius:2px;padding:0 1px">$1</mark>');
+}
+
+function renderGameMgmt() {
+  const tbody   = document.getElementById('gameMgmtBody');
+  const ftTitle = (document.getElementById('filterTitle')?.value || '').trim().toLowerCase();
+  const ftOpp   = (document.getElementById('filterOpp')?.value   || '').trim().toLowerCase();
+
+  const filtered = db.games.filter(g => {
+    const titleOk = !ftTitle || (g.title || '').toLowerCase().includes(ftTitle);
+    const oppOk   = !ftOpp   || (g.opp   || '').toLowerCase().includes(ftOpp);
+    return titleOk && oppOk;
+  });
+
+  const wins  = filtered.filter(g => g.myScore > g.oppScore).length;
+  const losses= filtered.filter(g => g.myScore < g.oppScore).length;
+  const ties  = filtered.filter(g => g.myScore === g.oppScore).length;
+  const rated = wins + losses;
+  const rate  = rated > 0 ? (wins / rated * 100).toFixed(1) + '%' : '-';
+
+  document.getElementById('rcWin').textContent  = wins;
+  document.getElementById('rcLoss').textContent = losses;
+  document.getElementById('rcTie').textContent  = ties;
+  document.getElementById('rcRate').textContent = rate;
+
+  const countEl = document.getElementById('filterCount');
+  countEl.textContent = (ftTitle || ftOpp)
+    ? `篩選結果：${filtered.length} / ${db.games.length} 場`
+    : `共 ${db.games.length} 場`;
+
+  if (!filtered.length) {
+    tbody.innerHTML = db.games.length === 0
+      ? `<tr><td colspan="9"><div class="empty"><div class="empty-icon">📅</div>尚無比賽記錄，請新增第一場比賽</div></td></tr>`
+      : `<tr><td colspan="9"><div class="empty"><div class="empty-icon">🔍</div>沒有符合篩選條件的比賽</div></td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = [...filtered].reverse().map(g => {
+    const r  = g.myScore > g.oppScore ? '勝' : g.myScore < g.oppScore ? '敗' : '平';
+    const bc = r === '勝' ? 'win' : r === '敗' ? 'loss' : 'tie';
+    const playerCount = db.stats.filter(s => s.gameId === g.id).length;
+    const editing = editingGameId === g.id;
+    const hlTitle = ftTitle ? hlText(g.title || '-', ftTitle) : (g.title || '-');
+    const hlOpp   = ftOpp   ? hlText(g.opp,          ftOpp)  :  g.opp;
+    return `<tr style="${editing ? 'background:rgba(52,152,219,0.07)' : ''}">
+      <td>${g.date}</td>
+      <td class="td-left" style="color:var(--text2);font-size:0.8rem">${hlTitle}</td>
+      <td class="td-left">${hlOpp}</td>
+      <td><strong>${g.myScore}</strong> : ${g.oppScore}</td>
+      <td><span class="badge badge-${bc}">${r}</span></td>
+      <td style="color:var(--text2);font-size:0.78rem">${g.note}</td>
+      <td style="color:var(--text2);font-size:0.78rem">${playerCount} 人</td>
+      <td><button class="btn" onclick="editGameMgmt('${g.id}')"
+            style="background:transparent;border:1px solid var(--blue);color:var(--blue);
+                   padding:4px 9px;font-size:0.78rem;${editing?'background:var(--blue);color:#0f1923;':''}">✏️</button></td>
+      <td><button class="btn btn-danger" onclick="deleteGame('${g.id}')">✕</button></td>
+    </tr>`;
+  }).join('');
+}
+
+/* ================================================================
+   比賽記錄 — 球員成績 CRUD
+   ================================================================ */
+let editingStatId = null;
+function gvS(id) { return document.getElementById(id).value; }
+function gnS(id) { return +document.getElementById(id).value || 0; }
+
+function renderGameSelect() {
+  const sel = document.getElementById('sGameId');
+  const sorted = [...db.games].sort((a,b) => b.date.localeCompare(a.date));
+  sel.innerHTML = '<option value="">— 請選擇比賽 —</option>' +
+    sorted.map(g => {
+      const label = `${g.date}${g.title ? ' ｜ ' + g.title : ''} vs ${g.opp}  ${g.myScore}:${g.oppScore}`;
+      return `<option value="${g.id}">${label}</option>`;
+    }).join('');
+  if (editingStatId) {
+    const st = db.stats.find(s => s.id === editingStatId);
+    if (st) sel.value = st.gameId;
+  }
+  onGameSelectChange();
+}
+
+function onGameSelectChange() {
+  const gameId = document.getElementById('sGameId').value;
+  const box = document.getElementById('selectedGameInfo');
+  if (!gameId) { box.style.display = 'none'; return; }
+  const g = getGame(gameId);
+  if (!g.id) { box.style.display = 'none'; return; }
+  const r  = g.myScore > g.oppScore ? '勝' : g.myScore < g.oppScore ? '敗' : '平';
+  const rc = r === '勝' ? 'var(--accent)' : r === '敗' ? 'var(--red)' : 'var(--yellow)';
+  box.style.display = 'flex';
+  box.innerHTML = `<div class="game-info-box">
+    <span>📅 <strong>${g.date}</strong></span>
+    ${g.title ? `<span>🏆 <strong>${g.title}</strong></span>` : ''}
+    <span>⚔️ vs <strong>${g.opp}</strong></span>
+    <span>比數：<strong>${g.myScore} : ${g.oppScore}</strong>
+      <strong style="color:${rc};margin-left:4px">${r}</strong></span>
+    <span>${g.note}</span>
+  </div>`;
+}
+
+function buildStatObj(id) {
+  return {
+    id: id || uid(), playerId: db.activePlayerId, gameId: gvS('sGameId'),
+    AB: gnS('sAB'), H: gnS('sH'), d2B: gnS('s2B'), d3B: gnS('s3B'), HR: gnS('sHR'),
+    RBI: gnS('sRBI'), RUN: gnS('sRUN'), BB: gnS('sBB'), K: gnS('sK'), HBP: gnS('sHBP'), SF: gnS('sSF'), SAC: gnS('sSAC'), SB: gnS('sSB'),
+    IP: +parseFloat(gvS('sIP')) || 0,
+    PH: gnS('sPH'), PER: gnS('sPER'), PBB: gnS('sPBB'), PK: gnS('sPK'), PW: gnS('sPW'), PL: gnS('sPL'),
+    PO: gnS('sPO'), A: gnS('sA'), E: gnS('sE'), DP: gnS('sDP')
+  };
+}
+
+function resetStatForm() {
+  document.getElementById('sGameId').value = ''; onGameSelectChange();
+  ['sAB','sH','s2B','s3B','sHR','sRBI','sRUN','sBB','sK','sHBP','sSF','sSAC','sSB',
+   'sIP','sPH','sPER','sPBB','sPK','sPW','sPL','sPO','sA','sE','sDP'].forEach(id => {
+    document.getElementById(id).value = 0;
+  });
+  editingStatId = null;
+  document.getElementById('addStatBtn').textContent = '＋ 新增成績';
+  document.getElementById('addStatBtn').style.background = '';
+  document.getElementById('cancelStatEditBtn').style.display = 'none';
+  document.getElementById('statEditBanner').style.display = 'none';
+  document.getElementById('statFormTitle').textContent = '新增球員成績';
+}
+
+function saveStat() {
+  if (!db.activePlayerId) { alert('請先從上方選擇或新增球員'); return; }
+  const gameId = gvS('sGameId');
+  if (!gameId) { alert('請選擇比賽'); return; }
+  if (editingStatId) {
+    const idx = db.stats.findIndex(s => s.id === editingStatId);
+    if (idx !== -1) db.stats[idx] = buildStatObj(editingStatId);
+  } else {
+    const dup = db.stats.find(s => s.playerId === db.activePlayerId && s.gameId === gameId);
+    if (dup) { alert('此球員已有這場比賽的成績記錄，請點擊列表中的 ✏️ 進行編輯'); return; }
+    db.stats.push(buildStatObj(null));
+  }
+  save(); resetStatForm(); renderGames();
+}
+
+function editStat(id) {
+  const st = db.stats.find(x => x.id === id);
+  if (!st) return;
+  editingStatId = id;
+  const g = getGame(st.gameId);
+  renderGameSelect();
+  document.getElementById('sGameId').value = st.gameId; onGameSelectChange();
+  document.getElementById('sAB').value  = st.AB;
+  document.getElementById('sH').value   = st.H;
+  document.getElementById('s2B').value  = st.d2B;
+  document.getElementById('s3B').value  = st.d3B;
+  document.getElementById('sHR').value  = st.HR;
+  document.getElementById('sRBI').value = st.RBI;
+  document.getElementById('sRUN').value = st.RUN||0;
+  document.getElementById('sBB').value  = st.BB;
+  document.getElementById('sK').value   = st.K;
+  document.getElementById('sHBP').value = st.HBP;
+  document.getElementById('sSF').value  = st.SF;
+  document.getElementById('sSAC').value = st.SAC||0;
+  document.getElementById('sSB').value  = st.SB;
+  document.getElementById('sIP').value  = st.IP;
+  document.getElementById('sPH').value  = st.PH;
+  document.getElementById('sPER').value = st.PER;
+  document.getElementById('sPBB').value = st.PBB;
+  document.getElementById('sPK').value  = st.PK;
+  document.getElementById('sPW').value  = st.PW||0;
+  document.getElementById('sPL').value  = st.PL||0;
+  document.getElementById('sPO').value  = st.PO;
+  document.getElementById('sA').value   = st.A;
+  document.getElementById('sE').value   = st.E;
+  document.getElementById('sDP').value  = st.DP;
+  document.getElementById('addStatBtn').textContent = '💾 更新成績';
+  document.getElementById('addStatBtn').style.background = 'var(--blue)';
+  document.getElementById('cancelStatEditBtn').style.display = 'inline-block';
+  document.getElementById('statEditBanner').style.display = 'block';
+  document.getElementById('statEditBanner').textContent =
+    `✏️ 正在編輯：${g.date || ''}${g.title ? '　' + g.title : ''}　vs ${g.opp || ''}`;
+  document.getElementById('statFormTitle').textContent = '編輯球員成績';
+  document.getElementById('statFormCard').scrollIntoView({ behavior: 'smooth' });
+  renderGames();
+}
+
+function cancelStatEdit() { resetStatForm(); renderGames(); }
+
+function deleteStat(id) {
+  if (!confirm('確定刪除此場成績記錄？')) return;
+  db.stats = db.stats.filter(s => s.id !== id);
+  save(); renderGames();
+}
+
+function renderGames() {
+  const tbody = document.getElementById('gamesBody');
+  if (!db.activePlayerId) {
+    tbody.innerHTML = `<tr><td colspan="16"><div class="empty">
+      <div class="empty-icon">🏃</div>請先從上方選擇或新增球員</div></td></tr>`;
+    return;
+  }
+  const stats = activeStats();
+  if (!stats.length) {
+    tbody.innerHTML = `<tr><td colspan="16"><div class="empty">
+      <div class="empty-icon">⚾</div>此球員尚無成績記錄</div></td></tr>`;
+    return;
+  }
+  const sorted = [...stats].sort((a,b) => {
+    const ga = getGame(a.gameId), gb = getGame(b.gameId);
+    return (gb.date||'').localeCompare(ga.date||'');
+  });
+  tbody.innerHTML = sorted.map(st => {
+    const g = getGame(st.gameId);
+    const r  = g.myScore > g.oppScore ? '勝' : g.myScore < g.oppScore ? '敗' : '平';
+    const bc = r === '勝' ? 'win' : r === '敗' ? 'loss' : 'tie';
+    const totalH = st.H + st.d2B + st.d3B + st.HR;
+    const avg    = st.AB > 0 ? fmtAvg(totalH / st.AB) : '-';
+    const editing = editingStatId === st.id;
+    return `<tr style="${editing ? 'background:rgba(52,152,219,0.07)' : ''}">
+      <td>${g.date||'-'}</td>
+      <td class="td-left" style="color:var(--text2);font-size:0.8rem">${g.title||'-'}</td>
+      <td class="td-left">${g.opp||'-'}</td>
+      <td><strong>${g.myScore??'-'}</strong> : ${g.oppScore??'-'}</td>
+      <td><span class="badge badge-${bc}">${r}</span></td>
+      <td>${st.AB}</td><td>${totalH}</td><td>${st.H}</td><td>${st.d2B}</td><td>${st.d3B}</td>
+      <td>${st.HR}</td><td>${st.RBI}</td><td>${st.RUN||0}</td><td>${st.SF}</td><td>${st.SAC||0}</td>
+      <td class="td-hi">${avg}</td>
+      <td style="color:var(--text2);font-size:0.78rem">${g.note||''}</td>
+      <td><button class="btn" onclick="editStat('${st.id}')"
+            style="background:transparent;border:1px solid var(--blue);color:var(--blue);
+                   padding:4px 9px;font-size:0.78rem;${editing?'background:var(--blue);color:#0f1923;':''}">✏️</button></td>
+      <td><button class="btn btn-danger" onclick="deleteStat('${st.id}')">✕</button></td>
+    </tr>`;
+  }).join('');
+}
+
+/* ================================================================
+   BATTING STATS
+   ================================================================ */
+function calcBatting(statsArr) {
+  let AB=0,H=0,d2B=0,d3B=0,HR=0,RBI=0,RUN=0,BB=0,K=0,HBP=0,SF=0,SAC=0,SB=0;
+  statsArr.forEach(s => {
+    AB+=s.AB; H+=s.H; d2B+=s.d2B; d3B+=s.d3B; HR+=s.HR;
+    RBI+=s.RBI; RUN+=(s.RUN||0); BB+=s.BB; K+=s.K; HBP+=s.HBP; SF+=s.SF; SAC+=(s.SAC||0); SB+=s.SB;
+  });
+  const singles = H;
+  const totalH  = H + d2B + d3B + HR;
+  const TB = singles + d2B*2 + d3B*3 + HR*4;
+  const PA = AB + BB + HBP + SF + SAC;
+  const AVG = AB > 0 ? totalH/AB : 0;
+  const OBP = PA > 0 ? (totalH+BB+HBP)/PA : 0;
+  const SLG = AB > 0 ? TB/AB : 0;
+  return { AB, H: totalH, singles, d2B, d3B, HR, RBI, RUN, BB, K, HBP, SF, SAC, SB, TB, PA,
+           AVG, OBP, SLG, OPS: OBP+SLG };
+}
+
+function fmtAvg(n) {
+  if (isNaN(n) || n === null) return '-';
+  return n.toFixed(3).replace(/^0\./, '.');
+}
+
+let avgChartInst = null;
+
+function renderBatting() {
+  const s = calcBatting(activeStats());
+  const items = [
+    ['打擊率', fmtAvg(s.AVG), 'AVG', ''],
+    ['上壘率', fmtAvg(s.OBP), 'OBP', ''],
+    ['長打率', fmtAvg(s.SLG), 'SLG', ''],
+    ['整體攻擊', s.OPS ? s.OPS.toFixed(3) : '-', 'OPS', 'color:var(--yellow)'],
+    ['打數', s.AB, 'AB', 'color:var(--text2)'],
+    ['安打', s.H, 'H', ''],
+    ['一壘安打', s.singles, '1B', ''],
+    ['二壘打', s.d2B, '2B', ''],
+    ['三壘打', s.d3B, '3B', ''],
+    ['全壘打', s.HR, 'HR', 'color:#e74c3c'],
+    ['打點', s.RBI, 'RBI', ''],
+    ['得分', s.RUN, 'RUN', ''],
+    ['四壞球', s.BB, 'BB', ''],
+    ['觸身球', s.HBP, 'HBP', ''],
+    ['犧牲飛球', s.SF, 'SF', ''],
+    ['犧牲觸擊', s.SAC, 'SAC', ''],
+    ['三振', s.K, 'K', 'color:var(--red)'],
+    ['盜壘', s.SB, 'SB', ''],
+    ['出賽場數', activeStats().length, 'G', 'color:var(--text2)'],
+  ];
+  document.getElementById('battingStats').innerHTML = items.map(([lb, val, sub, col]) => `
+    <div class="stat-card">
+      <div class="s-label">${lb}</div>
+      <div class="s-value" style="${col}">${val}</div>
+      <div class="s-sub">${sub}</div>
+    </div>`).join('');
+
+  const sorted = activeStats()
+    .map(s => ({...s, _date: (getGame(s.gameId)||{}).date||''}))
+    .sort((a,b) => a._date.localeCompare(b._date));
+
+  if (avgChartInst) { avgChartInst.destroy(); avgChartInst = null; }
+  if (sorted.length) {
+    const labels = sorted.map(s => {
+      const g = getGame(s.gameId);
+      return (g.date||'').slice(5).replace('-','/') + ' ' + (g.opp||'').slice(0,5);
+    });
+    const avgs = sorted.map((_,i) => calcBatting(sorted.slice(0,i+1)).AVG.toFixed(3));
+    const ctx = document.getElementById('avgChart').getContext('2d');
+    avgChartInst = new Chart(ctx, {
+      type: 'line',
+      data: { labels, datasets: [{
+        label: '累積打擊率 AVG', data: avgs,
+        borderColor: '#2ecc71', backgroundColor: 'rgba(46,204,113,0.08)',
+        tension: 0.35, fill: true, pointBackgroundColor: '#2ecc71', pointRadius: 4,
+      }]},
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { labels: { color: '#e8f4ea', font: { size: 11 } } } },
+        scales: {
+          x: { ticks: { color: '#8fa3b1', maxRotation: 45, font: { size: 10 } }, grid: { color: '#2d4a5a' } },
+          y: { min: 0, max: 1, ticks: { color: '#8fa3b1' }, grid: { color: '#2d4a5a' } }
+        }
+      }
+    });
+  }
+
+  const tbody = document.getElementById('battingBody');
+  if (!sorted.length) {
+    tbody.innerHTML = '<tr><td colspan="17"><div class="empty">尚無打擊記錄</div></td></tr>';
+    return;
+  }
+  tbody.innerHTML = [...sorted].reverse().map(st => {
+    const g  = getGame(st.gameId);
+    const PA = st.AB + st.BB + st.HBP + st.SF;
+    const tH = st.H + st.d2B + st.d3B + st.HR;
+    const TB = st.H + st.d2B*2 + st.d3B*3 + st.HR*4;
+    return `<tr>
+      <td>${g.date||'-'}</td><td class="td-left">${g.opp||'-'}</td>
+      <td>${st.AB}</td><td>${tH}</td><td>${st.H}</td><td>${st.d2B}</td><td>${st.d3B}</td><td>${st.HR}</td>
+      <td>${st.RBI}</td><td>${st.RUN||0}</td><td>${st.BB}</td><td>${st.K}</td><td>${st.HBP}</td><td>${st.SF}</td><td>${st.SAC||0}</td><td>${st.SB}</td>
+      <td class="td-hi">${st.AB>0 ? fmtAvg(tH/st.AB) : '-'}</td>
+      <td>${PA>0 ? fmtAvg((tH+st.BB+st.HBP)/PA) : '-'}</td>
+      <td>${st.AB>0 ? fmtAvg(TB/st.AB) : '-'}</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderPitching() {
+  const pg = activeStats().filter(s => s.IP > 0);
+  const totIP=pg.reduce((a,s)=>a+s.IP,0), totPH=pg.reduce((a,s)=>a+s.PH,0);
+  const totPER=pg.reduce((a,s)=>a+s.PER,0), totPBB=pg.reduce((a,s)=>a+s.PBB,0), totPK=pg.reduce((a,s)=>a+s.PK,0);
+  const totPW=pg.reduce((a,s)=>a+(s.PW||0),0), totPL=pg.reduce((a,s)=>a+(s.PL||0),0);
+  const ERA=totIP>0?(totPER*9/totIP).toFixed(2):'-', WHIP=totIP>0?((totPH+totPBB)/totIP).toFixed(2):'-';
+  const K9=totIP>0?(totPK*9/totIP).toFixed(1):'-', BB9=totIP>0?(totPBB*9/totIP).toFixed(1):'-';
+  document.getElementById('pitchingStats').innerHTML = [
+    ['防禦率',ERA,'ERA','color:var(--yellow)'],['WHIP',WHIP,'WHIP','color:var(--yellow)'],
+    ['K/9',K9,'K/9',''],['BB/9',BB9,'BB/9',''],['局數',totIP.toFixed(1),'IP',''],
+    ['被安打',totPH,'H',''],['責任失分',totPER,'ER','color:var(--red)'],
+    ['四壞球',totPBB,'BB',''],['三振',totPK,'K',''],
+    ['勝投',totPW,'W','color:var(--green)'],['敗投',totPL,'L','color:var(--red)'],
+    ['投球場次',pg.length,'G','color:var(--text2)'],
+  ].map(([lb,val,sub,col])=>`<div class="stat-card">
+    <div class="s-label">${lb}</div><div class="s-value" style="${col}">${val}</div><div class="s-sub">${sub}</div>
+  </div>`).join('');
+  const tbody = document.getElementById('pitchingBody');
+  if (!pg.length) { tbody.innerHTML='<tr><td colspan="10"><div class="empty">尚無投球記錄</div></td></tr>'; return; }
+  tbody.innerHTML = [...pg].sort((a,b)=>((getGame(b.gameId)||{}).date||'').localeCompare((getGame(a.gameId)||{}).date||'')).map(st => {
+    const g=getGame(st.gameId), era=st.IP>0?(st.PER*9/st.IP).toFixed(2):'-';
+    return `<tr><td>${g.date||'-'}</td><td class="td-left">${g.opp||'-'}</td>
+      <td>${st.IP.toFixed(1)}</td><td>${st.PH}</td>
+      <td style="color:${st.PER>0?'var(--red)':'inherit'}">${st.PER}</td>
+      <td>${st.PBB}</td><td>${st.PK}</td>
+      <td style="color:${(st.PW||0)>0?'var(--green)':'inherit'}">${st.PW||0}</td>
+      <td style="color:${(st.PL||0)>0?'var(--red)':'inherit'}">${st.PL||0}</td>
+      <td class="td-hi">${era}</td></tr>`;
+  }).join('');
+}
+
+function renderFielding() {
+  const fg=activeStats();
+  const totPO=fg.reduce((s,x)=>s+x.PO,0), totA=fg.reduce((s,x)=>s+x.A,0);
+  const totE=fg.reduce((s,x)=>s+x.E,0), totDP=fg.reduce((s,x)=>s+x.DP,0);
+  const denom=totPO+totA+totE, FLD=denom>0?((totPO+totA)/denom*100).toFixed(1)+'%':'-';
+  document.getElementById('fieldingStats').innerHTML = [
+    ['守備率',FLD,'FLD%',''],['接殺',totPO,'PO',''],['助殺',totA,'A',''],
+    ['失誤',totE,'E','color:var(--red)'],['雙殺',totDP,'DP',''],['出賽場次',fg.length,'G','color:var(--text2)'],
+  ].map(([lb,val,sub,col])=>`<div class="stat-card">
+    <div class="s-label">${lb}</div><div class="s-value" style="${col}">${val}</div><div class="s-sub">${sub}</div>
+  </div>`).join('');
+  const tbody = document.getElementById('fieldingBody');
+  if (!fg.length) { tbody.innerHTML='<tr><td colspan="7"><div class="empty">尚無守備記錄</div></td></tr>'; return; }
+  tbody.innerHTML = [...fg].sort((a,b)=>((getGame(b.gameId)||{}).date||'').localeCompare((getGame(a.gameId)||{}).date||'')).map(st=>{
+    const g=getGame(st.gameId), d=st.PO+st.A+st.E, fld=d>0?((st.PO+st.A)/d*100).toFixed(1)+'%':'-';
+    return `<tr><td>${g.date||'-'}</td><td class="td-left">${g.opp||'-'}</td>
+      <td>${st.PO}</td><td>${st.A}</td>
+      <td style="color:${st.E>0?'var(--red)':'inherit'}">${st.E}</td>
+      <td>${st.DP}</td><td class="td-hi">${fld}</td></tr>`;
+  }).join('');
+}
+
+/* ================================================================
+   SPRAY CHART
+   ================================================================ */
+const HIT_COLORS = {'1B':'#2ecc71','2B':'#3498db','3B':'#f1c40f','HR':'#e74c3c'};
+const HIT_LABELS = {'1B':'一壘安打','2B':'二壘安打','3B':'三壘安打','HR':'全壘打'};
+let currentHitType = '1B';
+
+function setHitType(type) {
+  currentHitType = type;
+  ['1B','2B','3B','HR'].forEach(t => {
+    const btn = document.getElementById('btn' + t);
+    if (t === type) { btn.style.background = HIT_COLORS[t]; btn.style.color = '#0f1923'; }
+    else { btn.style.background = 'transparent'; btn.style.color = HIT_COLORS[t]; }
+  });
+}
+
+function getSvgXY(event) {
+  const svg=document.getElementById('fieldSvg'), rect=svg.getBoundingClientRect(), vb=svg.viewBox.baseVal;
+  return {
+    x: Math.round((event.clientX-rect.left)/rect.width*vb.width),
+    y: Math.round((event.clientY-rect.top)/rect.height*vb.height)
+  };
+}
+
+function isInField(x, y) {
+  const dx=x-280, dy=458-y;
+  if (dy<15) return false;
+  if (Math.abs(dx)>=dy-2) return false;
+  const angle=Math.abs(dx)/dy, wallDist=300-16*angle, hrDist=330-16*angle;
+  const dist=Math.sqrt(dx*dx+dy*dy);
+  if (currentHitType==='HR') return dist>wallDist && dist<=hrDist;
+  return dist<=wallDist;
+}
+
+function addHit(event) {
+  if (!db.activePlayerId) return;
+  if (event.target.closest('#hitDots circle')) return;
+  const {x,y}=getSvgXY(event);
+  if (!isInField(x,y)) return;
+  db.hits.push({id:uid(), playerId:db.activePlayerId, type:currentHitType, x, y});
+  save(); renderHitDots(); renderSprayStats();
+}
+
+function removeHit(event) {
+  event.preventDefault();
+  const dot=event.target.closest('.hit-dot');
+  if (!dot) return;
+  db.hits=db.hits.filter(h=>h.id!==dot.getAttribute('data-id'));
+  save(); renderHitDots(); renderSprayStats();
+}
+
+function clearAllHits() {
+  const hits=activeHits();
+  if (!hits.length) return;
+  if (!confirm(`確定清除此球員所有 ${hits.length} 個落點記錄？`)) return;
+  db.hits=db.hits.filter(h=>h.playerId!==db.activePlayerId);
+  save(); renderHitDots(); renderSprayStats();
+}
+
+function renderHitDots() {
+  document.getElementById('hitDots').innerHTML=activeHits().map(h=>`
+    <circle class="hit-dot" data-id="${h.id}" cx="${h.x}" cy="${h.y}" r="3"
+      fill="${HIT_COLORS[h.type]}" stroke="rgba(0,0,0,0.5)" stroke-width="1.2" opacity="0.88">
+      <title>${HIT_LABELS[h.type]}（右鍵刪除）</title>
+    </circle>`).join('');
+}
+
+function getZone(x,y) {
+  if (y>370) return x<280?'左內野':'右內野';
+  if (x<208) return '左外野';
+  if (x>352) return '右外野';
+  return '中外野';
+}
+
+let hitPieInst=null;
+
+function renderSprayStats() {
+  const hits=activeHits(), total=hits.length;
+  const byType={'1B':0,'2B':0,'3B':0,'HR':0};
+  const byZone={'左外野':0,'中外野':0,'右外野':0,'左內野':0,'右內野':0};
+  hits.forEach(h=>{byType[h.type]++;byZone[getZone(h.x,h.y)]++;});
+  const pct=n=>total?Math.round(n/total*100):0;
+  document.getElementById('sprayStats').innerHTML=total===0
+    ?`<div class="empty" style="padding:20px"><div class="empty-icon">🎯</div>點擊球場新增落點</div>`
+    :`<div style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;padding-bottom:8px;border-bottom:1px solid var(--border);margin-bottom:10px">
+        <span style="color:var(--text2);font-size:0.8rem">落點總數</span>
+        <strong style="font-size:1.1rem">${total}</strong>
+      </div>
+      ${Object.entries(byType).map(([t,n])=>`
+        <div class="spray-stat-row">
+          <div class="spray-dot" style="background:${HIT_COLORS[t]}"></div>
+          <span style="flex:1">${HIT_LABELS[t]}</span>
+          <strong>${n}</strong>
+          <span style="color:var(--text2);font-size:0.75rem;width:32px;text-align:right">${pct(n)}%</span>
+        </div>`).join('')}
+    </div>
+    <div style="border-top:1px solid var(--border);padding-top:12px">
+      <div style="font-size:0.75rem;color:var(--text2);margin-bottom:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em">區域分布</div>
+      ${Object.entries(byZone).map(([z,n])=>`
+        <div class="zone-bar-wrap">
+          <div class="zone-bar-label">
+            <span style="font-size:0.82rem">${z}</span>
+            <span style="font-size:0.82rem"><strong>${n}</strong> <span style="color:var(--text2)">${pct(n)}%</span></span>
+          </div>
+          <div class="zone-bar-bg"><div class="zone-bar-fill" style="width:${pct(n)}%"></div></div>
+        </div>`).join('')}
+    </div>`;
+  if (hitPieInst){hitPieInst.destroy();hitPieInst=null;}
+  if (total>0){
+    const ctx=document.getElementById('hitTypeChart').getContext('2d');
+    hitPieInst=new Chart(ctx,{
+      type:'doughnut',
+      data:{labels:['一壘安打','二壘安打','三壘安打','全壘打'],
+        datasets:[{data:[byType['1B'],byType['2B'],byType['3B'],byType['HR']],
+          backgroundColor:['#2ecc71','#3498db','#f1c40f','#e74c3c'],borderWidth:0,hoverOffset:4}]},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{position:'bottom',labels:{color:'#e8f4ea',font:{size:10},padding:8}}}}
+    });
+  }
+}
+
+function renderSpray(){setHitType(currentHitType);renderHitDots();renderSprayStats();}
+
+/* ================================================================
+   EXPORT REPORT
+   ================================================================ */
+function exportReport() {
+  if (!db.activePlayerId) { alert('請先選擇球員'); return; }
+  renderHitDots();
+  const svgEl = document.getElementById('fieldSvg');
+  const svgStr = new XMLSerializer().serializeToString(svgEl);
+  const ap = db.players.find(p => p.id === db.activePlayerId);
+  const name = ap ? ap.name : '球員';
+  const teamName = db.teamName || '';
+  const now = new Date().toLocaleDateString('zh-TW', {year:'numeric',month:'2-digit',day:'2-digit'});
+  const estats = activeStats();
+  const s = calcBatting(estats);
+  const pg = estats.filter(x => x.IP > 0);
+  const totIP  = pg.reduce((a,x) => a+x.IP,  0);
+  const totPH  = pg.reduce((a,x) => a+x.PH,  0);
+  const totPER = pg.reduce((a,x) => a+x.PER, 0);
+  const totPBB = pg.reduce((a,x) => a+x.PBB, 0);
+  const totPK  = pg.reduce((a,x) => a+x.PK,  0);
+  const totPW  = pg.reduce((a,x) => a+(x.PW||0), 0);
+  const totPL  = pg.reduce((a,x) => a+(x.PL||0), 0);
+  const ERA  = totIP>0 ? (totPER*9/totIP).toFixed(2) : '-';
+  const WHIP = totIP>0 ? ((totPH+totPBB)/totIP).toFixed(2) : '-';
+  const K9   = totIP>0 ? (totPK*9/totIP).toFixed(1) : '-';
+  const BB9  = totIP>0 ? (totPBB*9/totIP).toFixed(1) : '-';
+  const totPO = estats.reduce((a,x)=>a+x.PO,0);
+  const totA  = estats.reduce((a,x)=>a+x.A, 0);
+  const totE  = estats.reduce((a,x)=>a+x.E, 0);
+  const totDP = estats.reduce((a,x)=>a+x.DP,0);
+  const fldDen = totPO+totA+totE;
+  const FLD = fldDen>0 ? ((totPO+totA)/fldDen*100).toFixed(1)+'%' : '-';
+  const wins   = estats.filter(x=>{const g=getGame(x.gameId);return g.myScore>g.oppScore;}).length;
+  const losses = estats.filter(x=>{const g=getGame(x.gameId);return g.myScore<g.oppScore;}).length;
+  const ties   = estats.length - wins - losses;
+  const winRate = (wins+losses)>0 ? (wins/(wins+losses)*100).toFixed(1)+'%' : '-';
+  const ehits  = activeHits();
+  const byType = {'1B':0,'2B':0,'3B':0,'HR':0};
+  const byZone = {'左外野':0,'中外野':0,'右外野':0,'左內野':0,'右內野':0};
+  ehits.forEach(h => { byType[h.type]++; byZone[getZone(h.x,h.y)]++; });
+  const ht = ehits.length, zp = n => ht ? Math.round(n/ht*100) : 0;
+
+  const gameRows = [...estats]
+    .sort((a,b) => ((getGame(b.gameId)||{}).date||'').localeCompare((getGame(a.gameId)||{}).date||''))
+    .map(st => {
+      const g = getGame(st.gameId);
+      const r = g.myScore > g.oppScore ? '勝' : g.myScore < g.oppScore ? '敗' : '平';
+      const rcls = r==='勝'?'td-win':r==='敗'?'td-loss':'td-tie';
+      const tH = st.H+st.d2B+st.d3B+st.HR;
+      const avg = st.AB>0 ? fmtAvg(tH/st.AB) : '-';
+      const ip  = st.IP>0 ? st.IP.toFixed(1) : '-';
+      const era = st.IP>0 ? (st.PER*9/st.IP).toFixed(2) : '-';
+      return `<tr>
+        <td class="td-date">${g.date||''}</td>
+        <td>${g.opp||''}</td>
+        <td>${g.myScore??''}:${g.oppScore??''}</td>
+        <td class="${rcls}">${r}</td>
+        <td>${st.AB}</td><td>${tH}</td><td>${st.d2B}</td><td>${st.d3B}</td>
+        <td>${st.HR}</td><td>${st.RBI}</td><td>${st.BB}</td><td>${st.K}</td>
+        <td class="td-avg">${avg}</td>
+        <td>${ip}</td><td>${era}</td>
+        <td>${st.PO}</td><td>${st.A}</td>
+        <td class="${st.E>0?'td-err':''}">${st.E}</td>
+      </tr>`;
+    }).join('');
+
+  const svgScaled = svgStr.replace(/(<svg[^>]*)\s+width="[^"]*"/, '$1').replace(/(<svg[^>]*)\s+height="[^"]*"/, '$1');
+
+  const html = `<!DOCTYPE html><html lang="zh-TW"><head>
+<meta charset="UTF-8">
+<title>${teamName?teamName+' — ':''}${name} 棒球成績報告</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+body{font-family:'Segoe UI','Helvetica Neue',system-ui,sans-serif;background:#e5e9f0;color:#1e293b;font-size:12px;line-height:1.4}
+
+/* PAGE */
+.page{max-width:700px;margin:0 auto;background:#fff;box-shadow:0 2px 20px rgba(0,0,0,.14)}
+
+/* HEADER */
+.hdr{background:linear-gradient(135deg,#09192c 0%,#15325a 50%,#0b3323 100%);padding:17px 26px 13px;position:relative;overflow:hidden}
+.hdr::before{content:'';position:absolute;top:-40px;right:-40px;width:170px;height:170px;border-radius:50%;background:rgba(5,150,105,.06)}
+.hdr::after{content:'';position:absolute;bottom:0;left:0;right:0;height:2.5px;background:linear-gradient(90deg,#059669 0%,#34d399 40%,#d97706 70%,#059669 100%)}
+.hdr-top{display:flex;align-items:center;gap:12px;margin-bottom:11px}
+.hdr-logo{width:46px;height:46px;border-radius:8px;background:rgba(255,255,255,.08);border:1.5px solid rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;overflow:hidden}
+.hdr-logo img{width:100%;height:100%;object-fit:cover}
+.hdr-h1{font-size:1.28rem;font-weight:900;color:#fff;letter-spacing:.01em}
+.hdr-meta{display:flex;border-top:1px solid rgba(255,255,255,.1);padding-top:10px}
+.hm{flex:1;border-right:1px solid rgba(255,255,255,.08);padding-right:10px;margin-right:10px}
+.hm:last-child{border-right:none;padding-right:0;margin-right:0}
+.hm-lbl{font-size:.56rem;color:rgba(255,255,255,.36);text-transform:uppercase;letter-spacing:.08em;margin-bottom:2px}
+.hm-val{font-size:.82rem;font-weight:700;color:#fff}
+.cg{color:#34d399!important}.cr{color:#f87171!important}.cy{color:#fbbf24!important}.cw{color:rgba(255,255,255,.6)!important}
+
+/* BODY */
+.body{padding:13px 26px 15px}
+
+/* SECTION TITLE */
+.sec{display:flex;align-items:center;gap:6px;font-size:.61rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#059669;margin:10px 0 5px}
+.sec:first-child{margin-top:0}
+.sec::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,rgba(5,150,105,.35),transparent)}
+
+/* STAT CARDS */
+.kg{display:grid;gap:4px;margin-bottom:4px}
+.kg4{grid-template-columns:repeat(4,1fr)}
+.kg3{grid-template-columns:repeat(3,1fr)}
+.kg2{grid-template-columns:repeat(2,1fr)}
+.kc{border-radius:4px;padding:5px 8px;background:#f7f9fc;border-top:2px solid #dde3ed}
+.kc-g{background:#f0fdf5;border-top-color:#059669}
+.kc-a{background:#fffdf0;border-top-color:#d97706}
+.kc-r{background:#fff5f5;border-top-color:#dc2626}
+.kc .lb{font-size:.54rem;color:#8899b5;text-transform:uppercase;letter-spacing:.04em;font-weight:600;margin-bottom:1px}
+.kc .vl{font-size:.95rem;font-weight:900;color:#1e293b;line-height:1.1}
+.kc-g .vl{color:#059669}.kc-a .vl{color:#d97706}.kc-r .vl{color:#dc2626}
+
+/* SPRAY CHART */
+.spray{display:flex;gap:12px;align-items:flex-start;margin-top:5px}
+.spray-svg{flex:0 0 190px;width:190px}
+.spray-svg svg{width:190px;height:auto;border-radius:5px;overflow:hidden}
+.spray-leg{flex:1;min-width:0}
+.ht-row{display:flex;align-items:center;gap:6px;margin-bottom:5px;font-size:.74rem}
+.ht-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.zn-hdr{font-size:.57rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#94a3b8;margin:8px 0 5px;border-top:1px solid #eef2f7;padding-top:7px}
+.zn-row{margin-bottom:4px}
+.zn-top{display:flex;justify-content:space-between;font-size:.68rem;margin-bottom:2px;color:#475569}
+.zn-track{background:#e8edf5;border-radius:3px;height:4px}
+.zn-fill{border-radius:3px;height:4px;background:linear-gradient(90deg,#059669,#6ee7b7)}
+
+/* PAGE 2 */
+.pg2{page-break-before:always;padding:15px 26px 16px}
+.pg2-bar{background:#09192c;color:#fff;padding:9px 13px;border-radius:6px 6px 0 0;font-size:.66rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;display:flex;justify-content:space-between;align-items:center}
+.pg2-bar .sub{font-weight:400;font-size:.62rem;color:rgba(255,255,255,.42);text-transform:none;letter-spacing:0}
+
+/* TABLE */
+.tbl-wrap{border-radius:0 0 6px 6px;overflow:hidden;border:1px solid #e0e6ef;border-top:none}
+table{width:100%;border-collapse:collapse;font-size:.62rem}
+th{background:#15325a;color:rgba(255,255,255,.88);padding:7px 5px;text-align:center;font-weight:700;font-size:.59rem;letter-spacing:.04em;white-space:nowrap}
+td{padding:5px 5px;text-align:center;border-bottom:1px solid #f1f5f9;white-space:nowrap;color:#334155}
+tr:last-child td{border-bottom:none}
+tr:nth-child(even) td{background:#f8fafc}
+.td-date{color:#94a3b8;font-size:.6rem}
+.td-win{color:#059669;font-weight:800}.td-loss{color:#dc2626;font-weight:800}.td-tie{color:#ca8a04;font-weight:800}
+.td-avg{font-weight:800;color:#15325a}.td-err{color:#dc2626}
+
+/* FOOTER */
+.foot{margin-top:9px;padding-top:8px;border-top:1px solid #eef2f7;display:flex;justify-content:space-between;font-size:.6rem;color:#94a3b8}
+
+/* PRINT BUTTON */
+.pbtn{position:fixed;top:16px;right:16px;background:linear-gradient(135deg,#059669,#047857);color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:.83rem;font-weight:700;cursor:pointer;box-shadow:0 3px 10px rgba(5,150,105,.4);z-index:999}
+
+@media print{
+  body{background:#fff}
+  .pbtn{display:none!important}
+  .page{box-shadow:none;max-width:none}
+  @page{size:A4 portrait;margin:1.1cm 1.3cm}
+}
+</style></head><body>
+
+<button class="pbtn" onclick="window.print()">🖨️ 列印 / 存 PDF</button>
+
+<div class="page">
+  <div class="hdr">
+    <div class="hdr-top">
+      <div class="hdr-logo">${db.teamLogo?`<img src="${db.teamLogo}" alt="">`: '⚾'}</div>
+      <div class="hdr-h1">${teamName||'棒球成績報告'}</div>
+    </div>
+    <div class="hdr-meta">
+      <div class="hm"><div class="hm-lbl">球員</div><div class="hm-val">${name}</div></div>
+      <div class="hm"><div class="hm-lbl">報告日期</div><div class="hm-val">${now}</div></div>
+    </div>
+  </div>
+
+  <div class="body">
+
+    <!-- 打擊成績 -->
+    <div class="sec">🏏 打擊成績</div>
+    <div class="kg kg4">
+      ${[['AVG 打擊率',fmtAvg(s.AVG),'kc-g'],['OBP 上壘率',fmtAvg(s.OBP),'kc-g'],['SLG 長打率',fmtAvg(s.SLG),'kc-g'],['OPS 整體攻擊',s.OPS?s.OPS.toFixed(3):'-','kc-a']
+      ].map(([l,v,c])=>`<div class="kc ${c}"><div class="lb">${l}</div><div class="vl">${v}</div></div>`).join('')}
+    </div>
+    <div class="kg kg4">
+      ${[['AB 打數',s.AB,''],['H 安打',s.H,''],['1B 一安',s.singles,''],['2B 二壘打',s.d2B,'']
+      ].map(([l,v,c])=>`<div class="kc ${c}"><div class="lb">${l}</div><div class="vl">${v}</div></div>`).join('')}
+    </div>
+    <div class="kg kg4">
+      ${[['3B 三壘打',s.d3B,''],['HR 全壘打',s.HR,''],['RBI 打點',s.RBI,''],['RUN 得分',s.RUN,'']
+      ].map(([l,v,c])=>`<div class="kc ${c}"><div class="lb">${l}</div><div class="vl">${v}</div></div>`).join('')}
+    </div>
+    <div class="kg kg4">
+      ${[['BB 四壞球',s.BB,''],['K 三振',s.K,''],['SB 盜壘',s.SB,''],['G 出賽場數',estats.length,'']
+      ].map(([l,v,c])=>`<div class="kc ${c}"><div class="lb">${l}</div><div class="vl">${v}</div></div>`).join('')}
+    </div>
+
+    <!-- 投球成績 -->
+    <div class="sec">🥎 投球成績</div>
+    <div class="kg kg4">
+      ${[['ERA 防禦率',ERA,'kc-a'],['WHIP',WHIP,'kc-a'],['K/9',K9,''],['BB/9',BB9,'']
+      ].map(([l,v,c])=>`<div class="kc ${c}"><div class="lb">${l}</div><div class="vl">${v}</div></div>`).join('')}
+    </div>
+    <div class="kg kg4">
+      ${[['IP 局數',totIP.toFixed(1),''],['H 被安打',totPH,''],['ER 責任失分',totPER,totPER>0?'kc-r':''],['BB 四壞球',totPBB,'']
+      ].map(([l,v,c])=>`<div class="kc ${c}"><div class="lb">${l}</div><div class="vl">${v}</div></div>`).join('')}
+    </div>
+    <div class="kg kg4">
+      ${[['K 三振',totPK,''],['W 勝投',totPW,'kc-g'],['L 敗投',totPL,totPL>0?'kc-r':''],['G 投球場次',pg.length,'']
+      ].map(([l,v,c])=>`<div class="kc ${c}"><div class="lb">${l}</div><div class="vl">${v}</div></div>`).join('')}
+    </div>
+
+    <!-- 守備成績 -->
+    <div class="sec">🧤 守備成績</div>
+    <div class="kg" style="grid-template-columns:repeat(5,1fr)">
+      ${[['FLD% 守備率',FLD,'kc-g'],['PO 接殺',totPO,''],['A 助殺',totA,''],['E 失誤',totE,totE>0?'kc-r':''],['DP 雙殺',totDP,'']
+      ].map(([l,v,c])=>`<div class="kc ${c}"><div class="lb">${l}</div><div class="vl">${v}</div></div>`).join('')}
+    </div>
+
+    ${ht>0?`
+    <!-- 落點分布 -->
+    <div class="sec" style="margin-top:10px">🎯 打擊落點分布 <span style="font-size:.61rem;font-weight:400;color:#94a3b8;text-transform:none;letter-spacing:0;margin-left:3px">共 ${ht} 個落點</span></div>
+    <div class="spray">
+      <div class="spray-svg">${svgScaled}</div>
+      <div class="spray-leg">
+        ${[['1B','#16a34a','一壘安打'],['2B','#2563eb','二壘安打'],['3B','#d97706','三壘安打'],['HR','#dc2626','全壘打']].map(([t,c,l])=>`
+        <div class="ht-row"><div class="ht-dot" style="background:${c}"></div>
+          <span style="flex:1">${l}</span><strong>${byType[t]}</strong>
+          <span style="color:#bbb;width:25px;text-align:right">${zp(byType[t])}%</span>
+        </div>`).join('')}
+        <div class="zn-hdr">落點區域</div>
+        ${Object.entries(byZone).map(([z,n])=>`
+        <div class="zn-row">
+          <div class="zn-top"><span>${z}</span><span><strong>${n}</strong> <span style="color:#bbb">${zp(n)}%</span></span></div>
+          <div class="zn-track"><div class="zn-fill" style="width:${zp(n)}%"></div></div>
+        </div>`).join('')}
+      </div>
+    </div>`:''}
+
+    <div class="foot">
+      <span>⚾ 棒球數據統計系統</span>
+      <span>產生日期 ${now}</span>
+    </div>
+  </div>
+</div>
+
+<div class="pg2">
+  <div class="pg2-bar">📋 逐場比賽記錄 <span class="sub">${estats.length} 場 ｜ ${name}</span></div>
+  ${estats.length===0
+    ?`<p style="color:#aaa;padding:20px;text-align:center;border:1px solid #e0e6ef;border-top:none;border-radius:0 0 6px 6px">尚無比賽記錄</p>`
+    :`<div class="tbl-wrap"><table>
+      <thead><tr>
+        <th>日期</th><th>對手</th><th>比數</th><th>勝負</th>
+        <th>AB</th><th>H</th><th>2B</th><th>3B</th><th>HR</th>
+        <th>RBI</th><th>BB</th><th>K</th><th>AVG</th>
+        <th>IP</th><th>ERA</th><th>PO</th><th>A</th><th>E</th>
+      </tr></thead>
+      <tbody>${gameRows}</tbody>
+    </table></div>`}
+  <div class="foot" style="margin-top:10px">
+    <span>⚾ 棒球數據統計系統</span><span>${now}</span>
+  </div>
+</div>
+
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js');
+  });
+}
+</script>
+</body></html>`;
+
+  const w = window.open('', '_blank');
+  w.document.write(html);
+  w.document.close();
+}
+
+/* ---- INIT ---- */
+load();
+renderGameMgmt();
+renderGames();
+</script>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js');
+  });
+}
+</script>
+</body>
+</html>

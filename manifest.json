@@ -2,7 +2,7 @@
   "name": "前金國中球員數據",
   "short_name": "棒球數據",
   "description": "前金國中棒球隊球員成績統計系統",
-  "start_url": "./棒球數據統計.html",
+  "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#0f1923",
   "theme_color": "#0f1923",
