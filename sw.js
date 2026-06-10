@@ -1,4 +1,4 @@
-const CACHE = 'baseball-v1';
+const CACHE = 'baseball-v2';
 const FILES = [
   './',
   './index.html'
