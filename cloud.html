@@ -294,19 +294,6 @@
   <div class="tab" onclick="switchTab('spray')">🎯 落點分布</div>
 </div>
 
-<!-- GLOBAL FILTER BAR -->
-<div id="globalFilterBar" style="display:none;background:var(--surface2);border-bottom:2px solid rgba(241,196,15,0.25);padding:10px 20px">
-  <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end">
-    <span style="font-size:0.72rem;color:var(--yellow);font-weight:700;text-transform:uppercase;letter-spacing:0.06em;align-self:flex-end;padding-bottom:6px">🔍 篩選統計</span>
-    <div><label style="font-size:0.72rem;color:var(--text2);display:block;margin-bottom:3px">📅 日期從</label><input type="date" id="gfDateFrom" style="background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 10px;font-size:0.85rem" oninput="applyGlobalFilter()"></div>
-    <div><label style="font-size:0.72rem;color:var(--text2);display:block;margin-bottom:3px">📅 日期至</label><input type="date" id="gfDateTo" style="background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 10px;font-size:0.85rem" oninput="applyGlobalFilter()"></div>
-    <div><label style="font-size:0.72rem;color:var(--text2);display:block;margin-bottom:3px">🏆 比賽名稱</label><input type="text" id="gfTitle" placeholder="篩選比賽…" style="background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 10px;font-size:0.85rem;min-width:120px" oninput="applyGlobalFilter()"></div>
-    <div><label style="font-size:0.72rem;color:var(--text2);display:block;margin-bottom:3px">⚔️ 對手</label><input type="text" id="gfOpp" placeholder="篩選對手…" style="background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 10px;font-size:0.85rem;min-width:120px" oninput="applyGlobalFilter()"></div>
-    <button onclick="clearGlobalFilter()" style="align-self:flex-end;background:transparent;border:1px solid var(--border);color:var(--text2);border-radius:6px;padding:7px 14px;cursor:pointer;font-size:0.8rem;font-weight:600">✕ 清除</button>
-    <span id="gfStatus" style="align-self:flex-end;font-size:0.78rem;color:var(--yellow);padding-bottom:6px;font-weight:600"></span>
-  </div>
-</div>
-
 <!-- ===== TAB: 比賽管理 ===== -->
 <div id="tab-gamemgmt" class="tab-content active">
   <div class="card" id="gameMgmtFormCard">
@@ -687,6 +674,41 @@ function getGame(id) { return db.games.find(g => g.id === id) || {}; }
 let globalFilter = { dateFrom:'', dateTo:'', title:'', opp:'' };
 let activeFilterOn = false;
 
+// 在統計頁顯示篩選狀態提示
+function renderFilterBanner(tabId) {
+  const old = document.getElementById('gFilterBanner');
+  if (old) old.remove();
+  if (!activeFilterOn) return;
+  const gCount = getFilteredGames().length;
+  const parts = [];
+  if (globalFilter.dateFrom || globalFilter.dateTo) {
+    parts.push((globalFilter.dateFrom||'…')+' ~ '+(globalFilter.dateTo||'…'));
+  }
+  if (globalFilter.title) parts.push('比賽：'+globalFilter.title);
+  if (globalFilter.opp)   parts.push('對手：'+globalFilter.opp);
+  const banner = document.createElement('div');
+  banner.id = 'gFilterBanner';
+  banner.style.cssText = 'background:rgba(241,196,15,0.07);border:1px solid rgba(241,196,15,0.22);border-radius:8px;padding:8px 14px;margin-bottom:14px;font-size:0.8rem;color:var(--yellow);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px';
+  banner.innerHTML = '<span>🔍 篩選中（比賽管理已套用）：'+gCount+' 場比賽｜'+parts.join(' / ')+'</span>'
+    +'<button onclick="clearGameMgmtFilters()" style="background:transparent;border:1px solid rgba(241,196,15,0.4);color:var(--yellow);border-radius:5px;padding:3px 10px;cursor:pointer;font-size:0.75rem;white-space:nowrap">✕ 清除篩選</button>';
+  const tab = document.getElementById(tabId);
+  if (tab) tab.prepend(banner);
+}
+
+function clearGameMgmtFilters() {
+  ['filterDateFrom','filterDateTo','filterTitle','filterOpp'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.value='';
+  });
+  globalFilter={dateFrom:'',dateTo:'',title:'',opp:''};
+  activeFilterOn=false;
+  renderGameMgmt();
+  const aid=(document.querySelector('.tab-content.active')||{}).id||'';
+  if(aid==='tab-batting')  renderBatting();
+  if(aid==='tab-pitching') renderPitching();
+  if(aid==='tab-fielding') renderFielding();
+  if(aid==='tab-spray')    renderSpray();
+}
+
 function getFilteredGames() {
   return db.games.filter(g => {
     const dateOk = (!globalFilter.dateFrom || g.date >= globalFilter.dateFrom) &&
@@ -714,38 +736,6 @@ function getFilteredHits() {
   return all.filter(h => h.gameId && ids.has(h.gameId));
 }
 
-function applyGlobalFilter() {
-  globalFilter.dateFrom = document.getElementById('gfDateFrom').value;
-  globalFilter.dateTo   = document.getElementById('gfDateTo').value;
-  globalFilter.title    = (document.getElementById('gfTitle').value||'').trim().toLowerCase();
-  globalFilter.opp      = (document.getElementById('gfOpp').value||'').trim().toLowerCase();
-  activeFilterOn = !!(globalFilter.dateFrom || globalFilter.dateTo || globalFilter.title || globalFilter.opp);
-  const status = document.getElementById('gfStatus');
-  if (activeFilterOn) {
-    const gCount = getFilteredGames().length;
-    const sCount = getFilteredStats().length;
-    status.textContent = `篩選中：${gCount} 場比賽 / ${sCount} 筆記錄`;
-  } else { status.textContent = ''; }
-  const activeId = (document.querySelector('.tab-content.active')||{}).id||'';
-  if (activeId==='tab-batting')  renderBatting();
-  if (activeId==='tab-pitching') renderPitching();
-  if (activeId==='tab-fielding') renderFielding();
-  if (activeId==='tab-spray')    renderSpray();
-}
-
-function clearGlobalFilter() {
-  ['gfDateFrom','gfDateTo','gfTitle','gfOpp'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
-  globalFilter = { dateFrom:'', dateTo:'', title:'', opp:'' };
-  activeFilterOn = false;
-  const s = document.getElementById('gfStatus'); if(s) s.textContent='';
-  const activeId = (document.querySelector('.tab-content.active')||{}).id||'';
-  if (activeId==='tab-batting')  renderBatting();
-  if (activeId==='tab-pitching') renderPitching();
-  if (activeId==='tab-fielding') renderFielding();
-  if (activeId==='tab-spray')    renderSpray();
-}
-
-/* ---- TEAM LOGO & NAME ---- */
 function uploadLogo(input) {
   const file = input.files[0]; if (!file) return;
   if (file.size > 1.5 * 1024 * 1024) { alert('圖片大小請勿超過 1.5MB（雲端版限制）'); return; }
@@ -816,8 +806,6 @@ function switchTab(name) {
   document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
   document.getElementById('tab-' + name).classList.add('active');
   document.querySelectorAll('.tab')[TAB_NAMES.indexOf(name)].classList.add('active');
-  const dataTabs = ['batting','pitching','fielding','spray'];
-  document.getElementById('globalFilterBar').style.display = dataTabs.includes(name) ? 'block' : 'none';
   if (name === 'games')    { renderGameSelect(); renderGames(); }
   if (name === 'batting')  renderBatting();
   if (name === 'pitching') renderPitching();
@@ -905,6 +893,9 @@ function renderGameMgmt() {
   const ftDateTo   = (document.getElementById('filterDateTo')?.value   || '');
   const ftTitle = (document.getElementById('filterTitle')?.value || '').trim().toLowerCase();
   const ftOpp   = (document.getElementById('filterOpp')?.value   || '').trim().toLowerCase();
+  // 同步至全域篩選，讓打擊/投球/守備/落點也套用相同條件
+  globalFilter = { dateFrom: ftDateFrom, dateTo: ftDateTo, title: ftTitle, opp: ftOpp };
+  activeFilterOn = !!(ftDateFrom || ftDateTo || ftTitle || ftOpp);
   const filtered = db.games.filter(g => {
     const dateOk = (!ftDateFrom || g.date >= ftDateFrom) && (!ftDateTo || g.date <= ftDateTo);
     return dateOk &&
@@ -947,6 +938,12 @@ function renderGameMgmt() {
       <td><button class="btn btn-danger" onclick="deleteGame('${g.id}')">✕</button></td>
     </tr>`;
   }).join('');
+  // 若目前在統計頁籤，立即反映篩選結果
+  const _activeId=(document.querySelector('.tab-content.active')||{}).id||'';
+  if(_activeId==='tab-batting')  renderBatting();
+  if(_activeId==='tab-pitching') renderPitching();
+  if(_activeId==='tab-fielding') renderFielding();
+  if(_activeId==='tab-spray')    renderSpray();
 }
 
 /* ================================================================
@@ -1073,6 +1070,7 @@ function calcBatting(statsArr) {
 function fmtAvg(n) { if(isNaN(n)||n===null) return '-'; return n.toFixed(3).replace(/^0\./,'.'); }
 let avgChartInst=null;
 function renderBatting() {
+  renderFilterBanner('tab-batting');
   const fStats=getFilteredStats();
   const s=calcBatting(fStats);
   const items=[
@@ -1104,6 +1102,7 @@ function renderBatting() {
   }).join('');
 }
 function renderPitching() {
+  renderFilterBanner('tab-pitching');
   const pg=getFilteredStats().filter(s=>s.IP>0);
   const totIP=pg.reduce((a,s)=>a+s.IP,0),totPH=pg.reduce((a,s)=>a+s.PH,0);
   const totPER=pg.reduce((a,s)=>a+s.PER,0),totPBB=pg.reduce((a,s)=>a+s.PBB,0),totPK=pg.reduce((a,s)=>a+s.PK,0);
@@ -1126,6 +1125,7 @@ function renderPitching() {
   }).join('');
 }
 function renderFielding() {
+  renderFilterBanner('tab-fielding');
   const fg=getFilteredStats();
   const totPO=fg.reduce((s,x)=>s+x.PO,0),totA=fg.reduce((s,x)=>s+x.A,0);
   const totE=fg.reduce((s,x)=>s+x.E,0),totDP=fg.reduce((s,x)=>s+x.DP,0);
@@ -1213,6 +1213,7 @@ function renderSprayStats() {
   }
 }
 function renderSpray(){
+  renderFilterBanner('tab-spray');
   setHitType(currentHitType);
   const sel=document.getElementById('sprayGameSelect');
   if(sel){
@@ -1238,7 +1239,7 @@ function exportReport() {
   const name=ap?ap.name:'球員';
   const teamName=db.teamName||'';
   const now=new Date().toLocaleDateString('zh-TW',{year:'numeric',month:'2-digit',day:'2-digit'});
-  const estats=activeStats();
+  const estats=getFilteredStats();
   const s=calcBatting(estats);
   const pg=estats.filter(x=>x.IP>0);
   const totIP=pg.reduce((a,x)=>a+x.IP,0),totPH=pg.reduce((a,x)=>a+x.PH,0);
@@ -1249,7 +1250,7 @@ function exportReport() {
   const totPO=estats.reduce((a,x)=>a+x.PO,0),totA=estats.reduce((a,x)=>a+x.A,0);
   const totE=estats.reduce((a,x)=>a+x.E,0),totDP=estats.reduce((a,x)=>a+x.DP,0);
   const fldDen=totPO+totA+totE,FLD=fldDen>0?((totPO+totA)/fldDen*100).toFixed(1)+'%':'-';
-  const ehits=activeHits(),byType={'1B':0,'2B':0,'3B':0,'HR':0},byZone={'左外野':0,'中外野':0,'右外野':0,'左內野':0,'右內野':0};
+  const ehits=getFilteredHits(),byType={'1B':0,'2B':0,'3B':0,'HR':0},byZone={'左外野':0,'中外野':0,'右外野':0,'左內野':0,'右內野':0};
   ehits.forEach(h=>{byType[h.type]++;byZone[getZone(h.x,h.y)]++;});
   const ht=ehits.length,zp=n=>ht?Math.round(n/ht*100):0;
   const gameRows=[...estats].sort((a,b)=>((getGame(b.gameId)||{}).date||'').localeCompare((getGame(a.gameId)||{}).date||'')).map(st=>{
@@ -1259,7 +1260,7 @@ function exportReport() {
     return`<tr><td class="td-date">${g.date||''}</td><td>${g.opp||''}</td><td>${g.myScore??''}:${g.oppScore??''}</td><td class="${rcls}">${r}</td><td>${st.AB}</td><td>${tH}</td><td>${st.d2B}</td><td>${st.d3B}</td><td>${st.HR}</td><td>${st.RBI}</td><td>${st.BB}</td><td>${st.K}</td><td class="td-avg">${avg}</td><td>${ip}</td><td>${era}</td><td>${st.PO}</td><td>${st.A}</td><td class="${st.E>0?'td-err':''}">${st.E}</td></tr>`;
   }).join('');
   const svgScaled=svgStr.replace(/(<svg[^>]*)\s+width="[^"]*"/,'$1').replace(/(<svg[^>]*)\s+height="[^"]*"/,'$1');
-  const html=`<!DOCTYPE html><html lang="zh-TW"><head><meta charset="UTF-8"><title>${teamName?teamName+' — ':''}${name} 棒球成績報告</title><style>*{box-sizing:border-box;margin:0;padding:0}html{-webkit-print-color-adjust:exact;print-color-adjust:exact}body{font-family:'Segoe UI','Helvetica Neue',system-ui,sans-serif;background:#e5e9f0;color:#1e293b;font-size:12px;line-height:1.4}.page{max-width:700px;margin:0 auto;background:#fff;box-shadow:0 2px 20px rgba(0,0,0,.14)}.hdr{background:linear-gradient(135deg,#09192c 0%,#15325a 50%,#0b3323 100%);padding:17px 26px 13px;position:relative;overflow:hidden}.hdr::after{content:'';position:absolute;bottom:0;left:0;right:0;height:2.5px;background:linear-gradient(90deg,#059669 0%,#34d399 40%,#d97706 70%,#059669 100%)}.hdr-top{display:flex;align-items:center;gap:12px;margin-bottom:11px}.hdr-logo{width:46px;height:46px;border-radius:8px;background:rgba(255,255,255,.08);border:1.5px solid rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;overflow:hidden}.hdr-logo img{width:100%;height:100%;object-fit:cover}.hdr-h1{font-size:1.28rem;font-weight:900;color:#fff}.hdr-meta{display:flex;border-top:1px solid rgba(255,255,255,.1);padding-top:10px}.hm{flex:1;border-right:1px solid rgba(255,255,255,.08);padding-right:10px;margin-right:10px}.hm:last-child{border-right:none;padding-right:0;margin-right:0}.hm-lbl{font-size:.56rem;color:rgba(255,255,255,.36);text-transform:uppercase;letter-spacing:.08em;margin-bottom:2px}.hm-val{font-size:.82rem;font-weight:700;color:#fff}.body{padding:13px 26px 15px}.sec{display:flex;align-items:center;gap:6px;font-size:.61rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#059669;margin:10px 0 5px}.sec::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,rgba(5,150,105,.35),transparent)}.kg{display:grid;gap:4px;margin-bottom:4px}.kg4{grid-template-columns:repeat(4,1fr)}.kc{border-radius:4px;padding:5px 8px;background:#f7f9fc;border-top:2px solid #dde3ed}.kc-g{background:#f0fdf5;border-top-color:#059669}.kc-a{background:#fffdf0;border-top-color:#d97706}.kc-r{background:#fff5f5;border-top-color:#dc2626}.kc .lb{font-size:.54rem;color:#8899b5;text-transform:uppercase;letter-spacing:.04em;font-weight:600;margin-bottom:1px}.kc .vl{font-size:.95rem;font-weight:900;color:#1e293b;line-height:1.1}.kc-g .vl{color:#059669}.kc-a .vl{color:#d97706}.kc-r .vl{color:#dc2626}.spray{display:flex;gap:12px;align-items:flex-start;margin-top:5px}.spray-svg{flex:0 0 190px;width:190px}.spray-svg svg{width:190px;height:auto;border-radius:5px;overflow:hidden}.spray-leg{flex:1;min-width:0}.ht-row{display:flex;align-items:center;gap:6px;margin-bottom:5px;font-size:.74rem}.ht-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}.zn-hdr{font-size:.57rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#94a3b8;margin:8px 0 5px;border-top:1px solid #eef2f7;padding-top:7px}.zn-row{margin-bottom:4px}.zn-top{display:flex;justify-content:space-between;font-size:.68rem;margin-bottom:2px;color:#475569}.zn-track{background:#e8edf5;border-radius:3px;height:4px}.zn-fill{border-radius:3px;height:4px;background:linear-gradient(90deg,#059669,#6ee7b7)}.pg2{page-break-before:always;padding:15px 26px 16px}.pg2-bar{background:#09192c;color:#fff;padding:9px 13px;border-radius:6px 6px 0 0;font-size:.66rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;display:flex;justify-content:space-between;align-items:center}.pg2-bar .sub{font-weight:400;font-size:.62rem;color:rgba(255,255,255,.42)}.tbl-wrap{border-radius:0 0 6px 6px;overflow:hidden;border:1px solid #e0e6ef;border-top:none}table{width:100%;border-collapse:collapse;font-size:.62rem}th{background:#15325a;color:rgba(255,255,255,.88);padding:7px 5px;text-align:center;font-weight:700;font-size:.59rem;letter-spacing:.04em;white-space:nowrap}td{padding:5px 5px;text-align:center;border-bottom:1px solid #f1f5f9;white-space:nowrap;color:#334155}tr:last-child td{border-bottom:none}tr:nth-child(even) td{background:#f8fafc}.td-date{color:#94a3b8;font-size:.6rem}.td-win{color:#059669;font-weight:800}.td-loss{color:#dc2626;font-weight:800}.td-tie{color:#ca8a04;font-weight:800}.td-avg{font-weight:800;color:#15325a}.td-err{color:#dc2626}.foot{margin-top:9px;padding-top:8px;border-top:1px solid #eef2f7;display:flex;justify-content:space-between;font-size:.6rem;color:#94a3b8}.pbtn{position:fixed;top:16px;right:16px;background:linear-gradient(135deg,#059669,#047857);color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:.83rem;font-weight:700;cursor:pointer;box-shadow:0 3px 10px rgba(5,150,105,.4);z-index:999}@media print{body{background:#fff}.pbtn{display:none!important}.page{box-shadow:none;max-width:none}@page{size:A4 portrait;margin:1.1cm 1.3cm}}</style></head><body><button class="pbtn" onclick="window.print()">🖨️ 列印 / 存 PDF</button><div class="page"><div class="hdr"><div class="hdr-top"><div class="hdr-logo">${db.teamLogo?`<img src="${db.teamLogo}" alt="">`:'⚾'}</div><div class="hdr-h1">${teamName||'棒球成績報告'}</div></div><div class="hdr-meta"><div class="hm"><div class="hm-lbl">球員</div><div class="hm-val">${name}</div></div><div class="hm"><div class="hm-lbl">報告日期</div><div class="hm-val">${now}</div></div></div></div><div class="body"><div class="sec">🏏 打擊成績</div><div class="kg kg4">${[['AVG 打擊率',fmtAvg(s.AVG),'kc-g'],['OBP 上壘率',fmtAvg(s.OBP),'kc-g'],['SLG 長打率',fmtAvg(s.SLG),'kc-g'],['OPS 整體攻擊',s.OPS?s.OPS.toFixed(3):'-','kc-a']].map(([l,v,c])=>`<div class="kc ${c}"><div class="lb">${l}</div><div class="vl">${v}</div></div>`).join('')}</div><div class="kg kg4">${[['AB 打數',s.AB,''],['H 安打',s.H,''],['1B 一安',s.singles,''],['2B 二壘打',s.d2B,'']].map(([l,v,c])=>`<div class="kc ${c}"><div class="lb">${l}</div><div class="vl">${v}</div></div>`).join('')}</div><div class="kg kg4">${[['3B 三壘打',s.d3B,''],['HR 全壘打',s.HR,''],['RBI 打點',s.RBI,''],['RUN 得分',s.RUN,'']].map(([l,v,c])=>`<div class="kc ${c}"><div class="lb">${l}</div><div class="vl">${v}</div></div>`).join('')}</div><div class="kg kg4">${[['BB 四壞球',s.BB,''],['K 三振',s.K,''],['SB 盜壘',s.SB,''],['G 出賽場數',estats.length,'']].map(([l,v,c])=>`<div class="kc ${c}"><div class="lb">${l}</div><div class="vl">${v}</div></div>`).join('')}</div><div class="sec">🥎 投球成績</div><div class="kg kg4">${[['ERA 防禦率',ERA,'kc-a'],['WHIP',WHIP,'kc-a'],['K/9',K9,''],['BB/9',BB9,'']].map(([l,v,c])=>`<div class="kc ${c}"><div class="lb">${l}</div><div class="vl">${v}</div></div>`).join('')}</div><div class="kg kg4">${[['IP 局數',totIP.toFixed(1),''],['H 被安打',totPH,''],['ER 責任失分',totPER,totPER>0?'kc-r':''],['BB 四壞球',totPBB,'']].map(([l,v,c])=>`<div class="kc ${c}"><div class="lb">${l}</div><div class="vl">${v}</div></div>`).join('')}</div><div class="kg kg4">${[['K 三振',totPK,''],['W 勝投',totPW,'kc-g'],['L 敗投',totPL,totPL>0?'kc-r':''],['G 投球場次',pg.length,'']].map(([l,v,c])=>`<div class="kc ${c}"><div class="lb">${l}</div><div class="vl">${v}</div></div>`).join('')}</div><div class="sec">🧤 守備成績</div><div class="kg" style="grid-template-columns:repeat(5,1fr)">${[['FLD% 守備率',FLD,'kc-g'],['PO 接殺',totPO,''],['A 助殺',totA,''],['E 失誤',totE,totE>0?'kc-r':''],['DP 雙殺',totDP,'']].map(([l,v,c])=>`<div class="kc ${c}"><div class="lb">${l}</div><div class="vl">${v}</div></div>`).join('')}</div>${ht>0?`<div class="sec" style="margin-top:10px">🎯 打擊落點分布 <span style="font-size:.61rem;font-weight:400;color:#94a3b8;text-transform:none;letter-spacing:0;margin-left:3px">共 ${ht} 個落點</span></div><div class="spray"><div class="spray-svg">${svgScaled}</div><div class="spray-leg">${[['1B','#16a34a','一壘安打'],['2B','#2563eb','二壘安打'],['3B','#d97706','三壘安打'],['HR','#dc2626','全壘打']].map(([t,c,l])=>`<div class="ht-row"><div class="ht-dot" style="background:${c}"></div><span style="flex:1">${l}</span><strong>${byType[t]}</strong><span style="color:#bbb;width:25px;text-align:right">${zp(byType[t])}%</span></div>`).join('')}<div class="zn-hdr">落點區域</div>${Object.entries(byZone).map(([z,n])=>`<div class="zn-row"><div class="zn-top"><span>${z}</span><span><strong>${n}</strong> <span style="color:#bbb">${zp(n)}%</span></span></div><div class="zn-track"><div class="zn-fill" style="width:${zp(n)}%"></div></div></div>`).join('')}</div></div>`:''}<div class="foot"><span>⚾ 棒球數據統計系統</span><span>產生日期 ${now}</span></div></div></div><div class="pg2"><div class="pg2-bar">📋 逐場比賽記錄 <span class="sub">${estats.length} 場 ｜ ${name}</span></div>${estats.length===0?`<p style="color:#aaa;padding:20px;text-align:center;border:1px solid #e0e6ef;border-top:none;border-radius:0 0 6px 6px">尚無比賽記錄</p>`:`<div class="tbl-wrap"><table><thead><tr><th>日期</th><th>對手</th><th>比數</th><th>勝負</th><th>AB</th><th>H</th><th>2B</th><th>3B</th><th>HR</th><th>RBI</th><th>BB</th><th>K</th><th>AVG</th><th>IP</th><th>ERA</th><th>PO</th><th>A</th><th>E</th></tr></thead><tbody>${gameRows}</tbody></table></div>`}<div class="foot" style="margin-top:10px"><span>⚾ 棒球數據統計系統</span><span>${now}</span></div></div></body></html>`;
+  const html=`<!DOCTYPE html><html lang="zh-TW"><head><meta charset="UTF-8"><title>${teamName?teamName+' — ':''}${name} 棒球成績報告</title><style>*{box-sizing:border-box;margin:0;padding:0}html{-webkit-print-color-adjust:exact;print-color-adjust:exact}body{font-family:'Segoe UI','Helvetica Neue',system-ui,sans-serif;background:#e5e9f0;color:#1e293b;font-size:12px;line-height:1.4}.page{max-width:700px;margin:0 auto;background:#fff;box-shadow:0 2px 20px rgba(0,0,0,.14)}.hdr{background:linear-gradient(135deg,#09192c 0%,#15325a 50%,#0b3323 100%);padding:17px 26px 13px;position:relative;overflow:hidden}.hdr::after{content:'';position:absolute;bottom:0;left:0;right:0;height:2.5px;background:linear-gradient(90deg,#059669 0%,#34d399 40%,#d97706 70%,#059669 100%)}.hdr-top{display:flex;align-items:center;gap:12px;margin-bottom:11px}.hdr-logo{width:46px;height:46px;border-radius:8px;background:rgba(255,255,255,.08);border:1.5px solid rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;overflow:hidden}.hdr-logo img{width:100%;height:100%;object-fit:cover}.hdr-h1{font-size:1.28rem;font-weight:900;color:#fff}.hdr-meta{display:flex;border-top:1px solid rgba(255,255,255,.1);padding-top:10px}.hm{flex:1;border-right:1px solid rgba(255,255,255,.08);padding-right:10px;margin-right:10px}.hm:last-child{border-right:none;padding-right:0;margin-right:0}.hm-lbl{font-size:.56rem;color:rgba(255,255,255,.36);text-transform:uppercase;letter-spacing:.08em;margin-bottom:2px}.hm-val{font-size:.82rem;font-weight:700;color:#fff}.body{padding:13px 26px 15px}.sec{display:flex;align-items:center;gap:6px;font-size:.61rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#059669;margin:10px 0 5px}.sec::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,rgba(5,150,105,.35),transparent)}.kg{display:grid;gap:4px;margin-bottom:4px}.kg4{grid-template-columns:repeat(4,1fr)}.kc{border-radius:4px;padding:5px 8px;background:#f7f9fc;border-top:2px solid #dde3ed}.kc-g{background:#f0fdf5;border-top-color:#059669}.kc-a{background:#fffdf0;border-top-color:#d97706}.kc-r{background:#fff5f5;border-top-color:#dc2626}.kc .lb{font-size:.54rem;color:#8899b5;text-transform:uppercase;letter-spacing:.04em;font-weight:600;margin-bottom:1px}.kc .vl{font-size:.95rem;font-weight:900;color:#1e293b;line-height:1.1}.kc-g .vl{color:#059669}.kc-a .vl{color:#d97706}.kc-r .vl{color:#dc2626}.spray{display:flex;gap:12px;align-items:flex-start;margin-top:5px}.spray-svg{flex:0 0 190px;width:190px}.spray-svg svg{width:190px;height:auto;border-radius:5px;overflow:hidden}.spray-leg{flex:1;min-width:0}.ht-row{display:flex;align-items:center;gap:6px;margin-bottom:5px;font-size:.74rem}.ht-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}.zn-hdr{font-size:.57rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#94a3b8;margin:8px 0 5px;border-top:1px solid #eef2f7;padding-top:7px}.zn-row{margin-bottom:4px}.zn-top{display:flex;justify-content:space-between;font-size:.68rem;margin-bottom:2px;color:#475569}.zn-track{background:#e8edf5;border-radius:3px;height:4px}.zn-fill{border-radius:3px;height:4px;background:linear-gradient(90deg,#059669,#6ee7b7)}.pg2{page-break-before:always;padding:15px 26px 16px}.pg2-bar{background:#09192c;color:#fff;padding:9px 13px;border-radius:6px 6px 0 0;font-size:.66rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;display:flex;justify-content:space-between;align-items:center}.pg2-bar .sub{font-weight:400;font-size:.62rem;color:rgba(255,255,255,.42)}.tbl-wrap{border-radius:0 0 6px 6px;overflow:hidden;border:1px solid #e0e6ef;border-top:none}table{width:100%;border-collapse:collapse;font-size:.62rem}th{background:#15325a;color:rgba(255,255,255,.88);padding:7px 5px;text-align:center;font-weight:700;font-size:.59rem;letter-spacing:.04em;white-space:nowrap}td{padding:5px 5px;text-align:center;border-bottom:1px solid #f1f5f9;white-space:nowrap;color:#334155}tr:last-child td{border-bottom:none}tr:nth-child(even) td{background:#f8fafc}.td-date{color:#94a3b8;font-size:.6rem}.td-win{color:#059669;font-weight:800}.td-loss{color:#dc2626;font-weight:800}.td-tie{color:#ca8a04;font-weight:800}.td-avg{font-weight:800;color:#15325a}.td-err{color:#dc2626}.foot{margin-top:9px;padding-top:8px;border-top:1px solid #eef2f7;display:flex;justify-content:space-between;font-size:.6rem;color:#94a3b8}.pbtn{position:fixed;top:16px;right:16px;background:linear-gradient(135deg,#059669,#047857);color:#fff;border:none;border-radius:8px;padding:9px 18px;font-size:.83rem;font-weight:700;cursor:pointer;box-shadow:0 3px 10px rgba(5,150,105,.4);z-index:999}@media print{body{background:#fff}.pbtn{display:none!important}.page{box-shadow:none;max-width:none}@page{size:A4 portrait;margin:1.1cm 1.3cm}}</style></head><body><button class="pbtn" onclick="window.print()">🖨️ 列印 / 存 PDF</button><div class="page"><div class="hdr"><div class="hdr-top"><div class="hdr-logo">${db.teamLogo?`<img src="${db.teamLogo}" alt="">`:'⚾'}</div><div class="hdr-h1">${teamName||'棒球成績報告'}</div></div><div class="hdr-meta"><div class="hm"><div class="hm-lbl">球員</div><div class="hm-val">${name}</div></div><div class="hm"><div class="hm-lbl">報告日期</div><div class="hm-val">${now}</div></div>${activeFilterOn?`<div class="hm"><div class="hm-lbl" style="color:rgba(251,191,36,.6)">篩選範圍</div><div class="hm-val" style="font-size:.72rem;color:#fbbf24">${estats.length}場${[globalFilter.dateFrom?globalFilter.dateFrom+'~'+(globalFilter.dateTo||''): '',globalFilter.title?'比賽:'+globalFilter.title:'',globalFilter.opp?'對手:'+globalFilter.opp:''].filter(Boolean).join(' | ')}</div></div>`:'\`\`'}</div></div><div class="body"><div class="sec">🏏 打擊成績</div><div class="kg kg4">${[['AVG 打擊率',fmtAvg(s.AVG),'kc-g'],['OBP 上壘率',fmtAvg(s.OBP),'kc-g'],['SLG 長打率',fmtAvg(s.SLG),'kc-g'],['OPS 整體攻擊',s.OPS?s.OPS.toFixed(3):'-','kc-a']].map(([l,v,c])=>`<div class="kc ${c}"><div class="lb">${l}</div><div class="vl">${v}</div></div>`).join('')}</div><div class="kg kg4">${[['AB 打數',s.AB,''],['H 安打',s.H,''],['1B 一安',s.singles,''],['2B 二壘打',s.d2B,'']].map(([l,v,c])=>`<div class="kc ${c}"><div class="lb">${l}</div><div class="vl">${v}</div></div>`).join('')}</div><div class="kg kg4">${[['3B 三壘打',s.d3B,''],['HR 全壘打',s.HR,''],['RBI 打點',s.RBI,''],['RUN 得分',s.RUN,'']].map(([l,v,c])=>`<div class="kc ${c}"><div class="lb">${l}</div><div class="vl">${v}</div></div>`).join('')}</div><div class="kg kg4">${[['BB 四壞球',s.BB,''],['K 三振',s.K,''],['SB 盜壘',s.SB,''],['G 出賽場數',estats.length,'']].map(([l,v,c])=>`<div class="kc ${c}"><div class="lb">${l}</div><div class="vl">${v}</div></div>`).join('')}</div><div class="sec">🥎 投球成績</div><div class="kg kg4">${[['ERA 防禦率',ERA,'kc-a'],['WHIP',WHIP,'kc-a'],['K/9',K9,''],['BB/9',BB9,'']].map(([l,v,c])=>`<div class="kc ${c}"><div class="lb">${l}</div><div class="vl">${v}</div></div>`).join('')}</div><div class="kg kg4">${[['IP 局數',totIP.toFixed(1),''],['H 被安打',totPH,''],['ER 責任失分',totPER,totPER>0?'kc-r':''],['BB 四壞球',totPBB,'']].map(([l,v,c])=>`<div class="kc ${c}"><div class="lb">${l}</div><div class="vl">${v}</div></div>`).join('')}</div><div class="kg kg4">${[['K 三振',totPK,''],['W 勝投',totPW,'kc-g'],['L 敗投',totPL,totPL>0?'kc-r':''],['G 投球場次',pg.length,'']].map(([l,v,c])=>`<div class="kc ${c}"><div class="lb">${l}</div><div class="vl">${v}</div></div>`).join('')}</div><div class="sec">🧤 守備成績</div><div class="kg" style="grid-template-columns:repeat(5,1fr)">${[['FLD% 守備率',FLD,'kc-g'],['PO 接殺',totPO,''],['A 助殺',totA,''],['E 失誤',totE,totE>0?'kc-r':''],['DP 雙殺',totDP,'']].map(([l,v,c])=>`<div class="kc ${c}"><div class="lb">${l}</div><div class="vl">${v}</div></div>`).join('')}</div>${ht>0?`<div class="sec" style="margin-top:10px">🎯 打擊落點分布 <span style="font-size:.61rem;font-weight:400;color:#94a3b8;text-transform:none;letter-spacing:0;margin-left:3px">共 ${ht} 個落點</span></div><div class="spray"><div class="spray-svg">${svgScaled}</div><div class="spray-leg">${[['1B','#16a34a','一壘安打'],['2B','#2563eb','二壘安打'],['3B','#d97706','三壘安打'],['HR','#dc2626','全壘打']].map(([t,c,l])=>`<div class="ht-row"><div class="ht-dot" style="background:${c}"></div><span style="flex:1">${l}</span><strong>${byType[t]}</strong><span style="color:#bbb;width:25px;text-align:right">${zp(byType[t])}%</span></div>`).join('')}<div class="zn-hdr">落點區域</div>${Object.entries(byZone).map(([z,n])=>`<div class="zn-row"><div class="zn-top"><span>${z}</span><span><strong>${n}</strong> <span style="color:#bbb">${zp(n)}%</span></span></div><div class="zn-track"><div class="zn-fill" style="width:${zp(n)}%"></div></div></div>`).join('')}</div></div>`:''}<div class="foot"><span>⚾ 棒球數據統計系統</span><span>產生日期 ${now}</span></div></div></div><div class="pg2"><div class="pg2-bar">📋 逐場比賽記錄 <span class="sub">${estats.length} 場 ｜ ${name}</span></div>${estats.length===0?`<p style="color:#aaa;padding:20px;text-align:center;border:1px solid #e0e6ef;border-top:none;border-radius:0 0 6px 6px">尚無比賽記錄</p>`:`<div class="tbl-wrap"><table><thead><tr><th>日期</th><th>對手</th><th>比數</th><th>勝負</th><th>AB</th><th>H</th><th>2B</th><th>3B</th><th>HR</th><th>RBI</th><th>BB</th><th>K</th><th>AVG</th><th>IP</th><th>ERA</th><th>PO</th><th>A</th><th>E</th></tr></thead><tbody>${gameRows}</tbody></table></div>`}<div class="foot" style="margin-top:10px"><span>⚾ 棒球數據統計系統</span><span>${now}</span></div></div></body></html>`;
   const w=window.open('','_blank'); w.document.write(html); w.document.close();
 }
 </script>
