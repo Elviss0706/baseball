@@ -294,6 +294,19 @@
   <div class="tab" onclick="switchTab('spray')">🎯 落點分布</div>
 </div>
 
+<!-- GLOBAL FILTER BAR -->
+<div id="globalFilterBar" style="display:none;background:var(--surface2);border-bottom:2px solid rgba(241,196,15,0.25);padding:10px 20px">
+  <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end">
+    <span style="font-size:0.72rem;color:var(--yellow);font-weight:700;text-transform:uppercase;letter-spacing:0.06em;align-self:flex-end;padding-bottom:6px">🔍 篩選統計</span>
+    <div><label style="font-size:0.72rem;color:var(--text2);display:block;margin-bottom:3px">📅 日期從</label><input type="date" id="gfDateFrom" style="background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 10px;font-size:0.85rem" oninput="applyGlobalFilter()"></div>
+    <div><label style="font-size:0.72rem;color:var(--text2);display:block;margin-bottom:3px">📅 日期至</label><input type="date" id="gfDateTo" style="background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 10px;font-size:0.85rem" oninput="applyGlobalFilter()"></div>
+    <div><label style="font-size:0.72rem;color:var(--text2);display:block;margin-bottom:3px">🏆 比賽名稱</label><input type="text" id="gfTitle" placeholder="篩選比賽…" style="background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 10px;font-size:0.85rem;min-width:120px" oninput="applyGlobalFilter()"></div>
+    <div><label style="font-size:0.72rem;color:var(--text2);display:block;margin-bottom:3px">⚔️ 對手</label><input type="text" id="gfOpp" placeholder="篩選對手…" style="background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 10px;font-size:0.85rem;min-width:120px" oninput="applyGlobalFilter()"></div>
+    <button onclick="clearGlobalFilter()" style="align-self:flex-end;background:transparent;border:1px solid var(--border);color:var(--text2);border-radius:6px;padding:7px 14px;cursor:pointer;font-size:0.8rem;font-weight:600">✕ 清除</button>
+    <span id="gfStatus" style="align-self:flex-end;font-size:0.78rem;color:var(--yellow);padding-bottom:6px;font-weight:600"></span>
+  </div>
+</div>
+
 <!-- ===== TAB: 比賽管理 ===== -->
 <div id="tab-gamemgmt" class="tab-content active">
   <div class="card" id="gameMgmtFormCard">
@@ -317,6 +330,8 @@
   <div class="card">
     <div class="card-title">比賽清單</div>
     <div class="filter-bar">
+      <div><label>📅 日期從</label><input type="date" id="filterDateFrom" style="background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 10px;font-size:0.85rem" oninput="renderGameMgmt()"></div>
+      <div><label>📅 日期至</label><input type="date" id="filterDateTo" style="background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 10px;font-size:0.85rem" oninput="renderGameMgmt()"></div>
       <div><label>🔍 比賽名稱</label><input type="text" id="filterTitle" placeholder="輸入比賽名稱…" oninput="renderGameMgmt()"></div>
       <div><label>⚔️ 對手隊名</label><input type="text" id="filterOpp" placeholder="輸入對手…" oninput="renderGameMgmt()"></div>
       <button class="btn" onclick="clearFilters()" style="align-self:flex-end;background:transparent;border:1px solid var(--border);color:var(--text2);font-size:0.8rem;padding:6px 12px">✕ 清除篩選</button>
@@ -423,6 +438,12 @@
       <div class="card">
         <div class="card-title">打擊落點圖</div>
         <p style="font-size:0.78rem;color:var(--text2);margin-bottom:12px">選擇安打類型 → 點擊球場位置新增落點　｜　<strong>右鍵點擊落點</strong>可刪除</p>
+        <div style="margin-bottom:14px">
+          <label style="font-size:0.72rem;color:var(--text2);display:block;margin-bottom:5px">⚾ 新增落點 — 請先選擇比賽（點擊球場時自動連結）</label>
+          <select id="sprayGameSelect" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:7px 10px;font-size:0.85rem;min-width:300px;max-width:100%">
+            <option value="">— 未選擇比賽（落點不連結） —</option>
+          </select>
+        </div>
         <div class="spray-controls">
           <button class="hit-type-btn" id="btn1B" style="border-color:#2ecc71;color:#0f1923;background:#2ecc71" onclick="setHitType('1B')">● 一壘安打</button>
           <button class="hit-type-btn" id="btn2B" style="border-color:#3498db;color:#3498db" onclick="setHitType('2B')">● 二壘安打</button>
@@ -660,6 +681,70 @@ let db = { players: [], activePlayerId: null, games: [], stats: [], hits: [] };
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
 function getGame(id) { return db.games.find(g => g.id === id) || {}; }
 
+/* ================================================================
+   GLOBAL FILTER
+================================================================ */
+let globalFilter = { dateFrom:'', dateTo:'', title:'', opp:'' };
+let activeFilterOn = false;
+
+function getFilteredGames() {
+  return db.games.filter(g => {
+    const dateOk = (!globalFilter.dateFrom || g.date >= globalFilter.dateFrom) &&
+                   (!globalFilter.dateTo   || g.date <= globalFilter.dateTo);
+    const titleOk = !globalFilter.title || (g.title||'').toLowerCase().includes(globalFilter.title);
+    const oppOk   = !globalFilter.opp   || (g.opp  ||'').toLowerCase().includes(globalFilter.opp);
+    return dateOk && titleOk && oppOk;
+  });
+}
+
+function getFilteredStats() {
+  if (!db.activePlayerId) return [];
+  const all = db.stats.filter(s => s.playerId === db.activePlayerId);
+  if (!activeFilterOn) return all;
+  const ids = new Set(getFilteredGames().map(g => g.id));
+  return all.filter(s => ids.has(s.gameId));
+}
+
+function getFilteredHits() {
+  if (!db.activePlayerId) return [];
+  const all = db.hits.filter(h => h.playerId === db.activePlayerId);
+  if (!activeFilterOn) return all;
+  const ids = new Set(getFilteredGames().map(g => g.id));
+  // 有 gameId 的只顯示符合篩選的；沒有 gameId 的舊落點篩選時不顯示
+  return all.filter(h => h.gameId && ids.has(h.gameId));
+}
+
+function applyGlobalFilter() {
+  globalFilter.dateFrom = document.getElementById('gfDateFrom').value;
+  globalFilter.dateTo   = document.getElementById('gfDateTo').value;
+  globalFilter.title    = (document.getElementById('gfTitle').value||'').trim().toLowerCase();
+  globalFilter.opp      = (document.getElementById('gfOpp').value||'').trim().toLowerCase();
+  activeFilterOn = !!(globalFilter.dateFrom || globalFilter.dateTo || globalFilter.title || globalFilter.opp);
+  const status = document.getElementById('gfStatus');
+  if (activeFilterOn) {
+    const gCount = getFilteredGames().length;
+    const sCount = getFilteredStats().length;
+    status.textContent = `篩選中：${gCount} 場比賽 / ${sCount} 筆記錄`;
+  } else { status.textContent = ''; }
+  const activeId = (document.querySelector('.tab-content.active')||{}).id||'';
+  if (activeId==='tab-batting')  renderBatting();
+  if (activeId==='tab-pitching') renderPitching();
+  if (activeId==='tab-fielding') renderFielding();
+  if (activeId==='tab-spray')    renderSpray();
+}
+
+function clearGlobalFilter() {
+  ['gfDateFrom','gfDateTo','gfTitle','gfOpp'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+  globalFilter = { dateFrom:'', dateTo:'', title:'', opp:'' };
+  activeFilterOn = false;
+  const s = document.getElementById('gfStatus'); if(s) s.textContent='';
+  const activeId = (document.querySelector('.tab-content.active')||{}).id||'';
+  if (activeId==='tab-batting')  renderBatting();
+  if (activeId==='tab-pitching') renderPitching();
+  if (activeId==='tab-fielding') renderFielding();
+  if (activeId==='tab-spray')    renderSpray();
+}
+
 /* ---- TEAM LOGO & NAME ---- */
 function uploadLogo(input) {
   const file = input.files[0]; if (!file) return;
@@ -731,6 +816,8 @@ function switchTab(name) {
   document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
   document.getElementById('tab-' + name).classList.add('active');
   document.querySelectorAll('.tab')[TAB_NAMES.indexOf(name)].classList.add('active');
+  const dataTabs = ['batting','pitching','fielding','spray'];
+  document.getElementById('globalFilterBar').style.display = dataTabs.includes(name) ? 'block' : 'none';
   if (name === 'games')    { renderGameSelect(); renderGames(); }
   if (name === 'batting')  renderBatting();
   if (name === 'pitching') renderPitching();
@@ -802,8 +889,9 @@ function deleteGame(id) {
   save(); renderGameMgmt(); renderGameSelect(); renderGames();
 }
 function clearFilters() {
-  document.getElementById('filterTitle').value = '';
-  document.getElementById('filterOpp').value = '';
+  ['filterDateFrom','filterDateTo','filterTitle','filterOpp'].forEach(id => {
+    const el = document.getElementById(id); if(el) el.value = '';
+  });
   renderGameMgmt();
 }
 function hlText(text, keyword) {
@@ -813,10 +901,14 @@ function hlText(text, keyword) {
 }
 function renderGameMgmt() {
   const tbody = document.getElementById('gameMgmtBody');
+  const ftDateFrom = (document.getElementById('filterDateFrom')?.value || '');
+  const ftDateTo   = (document.getElementById('filterDateTo')?.value   || '');
   const ftTitle = (document.getElementById('filterTitle')?.value || '').trim().toLowerCase();
   const ftOpp   = (document.getElementById('filterOpp')?.value   || '').trim().toLowerCase();
   const filtered = db.games.filter(g => {
-    return (!ftTitle || (g.title||'').toLowerCase().includes(ftTitle)) &&
+    const dateOk = (!ftDateFrom || g.date >= ftDateFrom) && (!ftDateTo || g.date <= ftDateTo);
+    return dateOk &&
+           (!ftTitle || (g.title||'').toLowerCase().includes(ftTitle)) &&
            (!ftOpp   || (g.opp  ||'').toLowerCase().includes(ftOpp));
   });
   const wins=filtered.filter(g=>g.myScore>g.oppScore).length;
@@ -828,7 +920,8 @@ function renderGameMgmt() {
   document.getElementById('rcTie').textContent=ties;
   document.getElementById('rcRate').textContent=rate;
   const countEl=document.getElementById('filterCount');
-  countEl.textContent=(ftTitle||ftOpp)?`篩選結果：${filtered.length} / ${db.games.length} 場`:`共 ${db.games.length} 場`;
+  const anyFilter=ftDateFrom||ftDateTo||ftTitle||ftOpp;
+  countEl.textContent=anyFilter?`篩選結果：${filtered.length} / ${db.games.length} 場`:`共 ${db.games.length} 場`;
   if (!filtered.length) {
     tbody.innerHTML=db.games.length===0
       ?`<tr><td colspan="9"><div class="empty"><div class="empty-icon">📅</div>尚無比賽記錄</div></td></tr>`
@@ -980,7 +1073,8 @@ function calcBatting(statsArr) {
 function fmtAvg(n) { if(isNaN(n)||n===null) return '-'; return n.toFixed(3).replace(/^0\./,'.'); }
 let avgChartInst=null;
 function renderBatting() {
-  const s=calcBatting(activeStats());
+  const fStats=getFilteredStats();
+  const s=calcBatting(fStats);
   const items=[
     ['打擊率',fmtAvg(s.AVG),'AVG',''],['上壘率',fmtAvg(s.OBP),'OBP',''],
     ['長打率',fmtAvg(s.SLG),'SLG',''],['整體攻擊',s.OPS?s.OPS.toFixed(3):'-','OPS','color:var(--yellow)'],
@@ -991,10 +1085,10 @@ function renderBatting() {
     ['四壞球',s.BB,'BB',''],['觸身球',s.HBP,'HBP',''],
     ['犧牲飛球',s.SF,'SF',''],['犧牲觸擊',s.SAC,'SAC',''],
     ['三振',s.K,'K','color:var(--red)'],['盜壘',s.SB,'SB',''],
-    ['出賽場數',activeStats().length,'G','color:var(--text2)'],
+    ['出賽場數',fStats.length,'G','color:var(--text2)'],
   ];
   document.getElementById('battingStats').innerHTML=items.map(([lb,val,sub,col])=>`<div class="stat-card"><div class="s-label">${lb}</div><div class="s-value" style="${col}">${val}</div><div class="s-sub">${sub}</div></div>`).join('');
-  const sorted=activeStats().map(s=>({...s,_date:(getGame(s.gameId)||{}).date||''})).sort((a,b)=>a._date.localeCompare(b._date));
+  const sorted=fStats.map(s=>({...s,_date:(getGame(s.gameId)||{}).date||''})).sort((a,b)=>a._date.localeCompare(b._date));
   if(avgChartInst){avgChartInst.destroy();avgChartInst=null;}
   if(sorted.length){
     const labels=sorted.map(s=>{const g=getGame(s.gameId);return(g.date||'').slice(5).replace('-','/')+' '+(g.opp||'').slice(0,5);});
@@ -1010,7 +1104,7 @@ function renderBatting() {
   }).join('');
 }
 function renderPitching() {
-  const pg=activeStats().filter(s=>s.IP>0);
+  const pg=getFilteredStats().filter(s=>s.IP>0);
   const totIP=pg.reduce((a,s)=>a+s.IP,0),totPH=pg.reduce((a,s)=>a+s.PH,0);
   const totPER=pg.reduce((a,s)=>a+s.PER,0),totPBB=pg.reduce((a,s)=>a+s.PBB,0),totPK=pg.reduce((a,s)=>a+s.PK,0);
   const totPW=pg.reduce((a,s)=>a+(s.PW||0),0),totPL=pg.reduce((a,s)=>a+(s.PL||0),0);
@@ -1032,7 +1126,7 @@ function renderPitching() {
   }).join('');
 }
 function renderFielding() {
-  const fg=activeStats();
+  const fg=getFilteredStats();
   const totPO=fg.reduce((s,x)=>s+x.PO,0),totA=fg.reduce((s,x)=>s+x.A,0);
   const totE=fg.reduce((s,x)=>s+x.E,0),totDP=fg.reduce((s,x)=>s+x.DP,0);
   const denom=totPO+totA+totE,FLD=denom>0?((totPO+totA)/denom*100).toFixed(1)+'%':'-';
@@ -1079,7 +1173,8 @@ function addHit(event) {
   if(event.target.closest('#hitDots circle')) return;
   const{x,y}=getSvgXY(event);
   if(!isInField(x,y)) return;
-  db.hits.push({id:uid(),playerId:db.activePlayerId,type:currentHitType,x,y});
+  const sprayGid=(document.getElementById('sprayGameSelect')||{}).value||null;
+  db.hits.push({id:uid(),playerId:db.activePlayerId,gameId:sprayGid||null,type:currentHitType,x,y});
   save(); renderHitDots(); renderSprayStats();
 }
 function removeHit(event) {
@@ -1095,7 +1190,7 @@ function clearAllHits() {
   save(); renderHitDots(); renderSprayStats();
 }
 function renderHitDots() {
-  document.getElementById('hitDots').innerHTML=activeHits().map(h=>`<circle class="hit-dot" data-id="${h.id}" cx="${h.x}" cy="${h.y}" r="3" fill="${HIT_COLORS[h.type]}" stroke="rgba(0,0,0,0.5)" stroke-width="1.2" opacity="0.88"><title>${HIT_LABELS[h.type]}（右鍵刪除）</title></circle>`).join('');
+  document.getElementById('hitDots').innerHTML=getFilteredHits().map(h=>`<circle class="hit-dot" data-id="${h.id}" cx="${h.x}" cy="${h.y}" r="3" fill="${HIT_COLORS[h.type]}" stroke="rgba(0,0,0,0.5)" stroke-width="1.2" opacity="0.88"><title>${HIT_LABELS[h.type]}（右鍵刪除）</title></circle>`).join('');
 }
 function getZone(x,y) {
   if(y>370) return x<280?'左內野':'右內野';
@@ -1103,7 +1198,7 @@ function getZone(x,y) {
 }
 let hitPieInst=null;
 function renderSprayStats() {
-  const hits=activeHits(),total=hits.length;
+  const hits=getFilteredHits(),total=hits.length;
   const byType={'1B':0,'2B':0,'3B':0,'HR':0};
   const byZone={'左外野':0,'中外野':0,'右外野':0,'左內野':0,'右內野':0};
   hits.forEach(h=>{byType[h.type]++;byZone[getZone(h.x,h.y)]++;});
@@ -1117,7 +1212,19 @@ function renderSprayStats() {
     hitPieInst=new Chart(ctx,{type:'doughnut',data:{labels:['一壘安打','二壘安打','三壘安打','全壘打'],datasets:[{data:[byType['1B'],byType['2B'],byType['3B'],byType['HR']],backgroundColor:['#2ecc71','#3498db','#f1c40f','#e74c3c'],borderWidth:0,hoverOffset:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{color:'#e8f4ea',font:{size:10},padding:8}}}}});
   }
 }
-function renderSpray(){setHitType(currentHitType);renderHitDots();renderSprayStats();}
+function renderSpray(){
+  setHitType(currentHitType);
+  const sel=document.getElementById('sprayGameSelect');
+  if(sel){
+    const cur=sel.value;
+    const sorted=[...db.games].sort((a,b)=>b.date.localeCompare(a.date));
+    sel.innerHTML='<option value="">— 未選擇比賽（落點不連結） —</option>'+
+      sorted.map(g=>`<option value="${g.id}">${g.date}${g.title?' ｜ '+g.title:''} vs ${g.opp}</option>`).join('');
+    if(cur) sel.value=cur;
+  }
+  renderHitDots();
+  renderSprayStats();
+}
 
 /* ================================================================
    EXPORT REPORT (same as index.html)
